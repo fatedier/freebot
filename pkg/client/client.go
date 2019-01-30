@@ -33,6 +33,8 @@ func (cli *githubClient) DoOperation(ctx context.Context, op interface{}) (err e
 		err = cli.doAddAssignOperation(ctx, v)
 	case *RemoveAssignOperation:
 		err = cli.doRemoveAssignOperation(ctx, v)
+	case *MergeOperation:
+		err = cli.doMergeOperation(ctx, v)
 	default:
 		err = fmt.Errorf("no support operation")
 	}

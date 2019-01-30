@@ -2,6 +2,8 @@ package event
 
 import (
 	"context"
+
+	"github.com/fatedier/freebot/pkg/client"
 )
 
 const (
@@ -10,10 +12,24 @@ const (
 	EvPullRequestReviewComment = "pull_request_review_comment"
 )
 
+const (
+	ActionCreated = "created"
+	ActionDeleted = "deleted"
+)
+
+const (
+	ObjectNeedBody = iota
+	ObjectNeedNumber
+	ObjectNeedAction
+	ObjectNeedAuthor
+	ObjectNeedCommentAuthor
+	ObjectNeedLabels
+)
+
 type EventContext struct {
-	Ctx     context.Context
-	Type    string
-	Owner   string
-	Repo    string
-	Payload interface{}
+	Ctx    context.Context
+	Type   string
+	Owner  string
+	Repo   string
+	Object *client.Object
 }

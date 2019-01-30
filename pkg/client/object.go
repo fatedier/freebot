@@ -8,12 +8,84 @@ import (
 
 type Object struct {
 	payload interface{}
+
+	hasAuthor bool
+	author    string
+
+	hasBody bool
+	body    string
+
+	hasCommentAuthor bool
+	commentAuthor    string
+
+	hasNumber bool
+	number    int
+
+	hasAction bool
+	action    string
+
+	hasLabels bool
+	labels    []string
 }
 
 func NewObject(payload interface{}) *Object {
-	return &Object{
+	obj := &Object{
 		payload: payload,
 	}
+
+	var err error
+	if obj.author, err = obj.GetAuthor(); err == nil {
+		obj.hasAuthor = true
+	}
+
+	if obj.body, err = obj.GetBody(); err == nil {
+		obj.hasBody = true
+	}
+
+	if obj.commentAuthor, err = obj.GetCommentAuthor(); err == nil {
+		obj.hasCommentAuthor = true
+	}
+
+	if obj.number, err = obj.GetNumber(); err == nil {
+		obj.hasNumber = true
+	}
+
+	if obj.action, err = obj.GetAction(); err == nil {
+		obj.hasAction = true
+	}
+
+	if obj.labels, err = obj.GetLables(); err == nil {
+		obj.hasLabels = true
+	}
+	return obj
+}
+
+func (obj *Object) Payload() interface{} {
+	return obj.payload
+}
+
+func (obj *Object) Author() (author string, ok bool) {
+	return obj.author, obj.hasAuthor
+}
+
+func (obj *Object) CommentAuthor() (author string, ok bool) {
+	return obj.commentAuthor, obj.hasCommentAuthor
+}
+
+func (obj *Object) Body() (body string, ok bool) {
+	return obj.body, obj.hasBody
+}
+
+func (obj *Object) Number() (number int, ok bool) {
+	return obj.number, obj.hasNumber
+}
+
+func (obj *Object) Action() (action string, ok bool) {
+	return obj.action, obj.hasAction
+}
+
+func (obj *Object) Labels() (labels []string, ok bool) {
+	return obj.labels, obj.hasLabels
 }
 
 func (obj *Object) GetAuthor() (author string, err error) {

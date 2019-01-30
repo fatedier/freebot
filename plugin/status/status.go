@@ -1,12 +1,12 @@
 package status
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
+	"github.com/fatedier/freebot/pkg/log"
 	"github.com/fatedier/freebot/plugin"
 )
 
@@ -15,9 +15,11 @@ import (
 */
 
 var (
-	PluginName    = "status"
-	SupportEvents = []string{event.EvIssueComment, event.EvPullRequest}
-	CmdStatus     = "status"
+	PluginName       = "status"
+	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest}
+	SupportActions   = []string{event.ActionCreated}
+	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber}
+	CmdStatus        = "status"
 )
 
 func init() {
@@ -49,7 +51,7 @@ func init() {
 	}
 */
 type Extra struct {
-	LabelPreconditions map[string][]config.Precondition
+	LabelPreconditions map[string][]config.Precondition `json:"label_precondition"`
 }
 
 type StatusPlugin struct {
@@ -59,41 +61,27 @@ type StatusPlugin struct {
 	cli   client.ClientInterface
 }
 
-func NewStatusPlugin(cli client.ClientInterface, owner string, repo string, base plugin.BasePluginOptions, extra interface{}) (plugin.Plugin, error) {
-	base.Owner = owner
-	base.Repo = repo
-	base.SupportEvents = SupportEvents
+func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
 	p := &StatusPlugin{
 		cli: cli,
 	}
-	p.BasePlugin = plugin.NewBasePlugin(PluginName, base)
+	options.SupportEvents = SupportEvents
+	options.SupportActions = SupportActions
+	options.ObjectNeedParams = ObjectNeedParams
+	options.Handler = p.hanldeEvent
 
-	buf, err := json.Marshal(extra)
+	p.BasePlugin = plugin.NewBasePlugin(PluginName, options)
+
+	err := p.UnmarshalTo(&p.extra)
 	if err != nil {
-		return nil, fmt.Errorf("[%s] extra conf parse failed", PluginName)
-	}
-
-	if err = json.Unmarshal(buf, &p.extra); err != nil {
-		return nil, fmt.Errorf("[%s] extra conf parse failed", PluginName)
+		return nil, err
 	}
 	return p, nil
 }
 
-func (p *StatusPlugin) HanldeEvent(ctx *event.EventContext) (err error) {
-	var (
-		msg    string
-		number int
-	)
-	obj := client.NewObject(ctx.Payload)
-	msg, err = obj.GetBody()
-	if err != nil {
-		return
-	}
-
-	number, err = obj.GetNumber()
-	if err != nil {
-		return
-	}
+func (p *StatusPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
+	msg, _ := ctx.Object.Body()
+	number, _ := ctx.Object.Number()
 
 	cmds := p.ParseCmdsFromMsg(msg, true)
 	for _, cmd := range cmds {
@@ -101,19 +89,33 @@ func (p *StatusPlugin) HanldeEvent(ctx *event.EventContext) (err error) {
 
 		// only attach one status label and remove old status label
 		if cmd.Name == CmdStatus {
+			log.Debug("cmd: %v", cmd)
 			if len(cmd.Args) > 0 {
 				arg := cmd.Args[0]
 				arg = p.ParseLabelAlias(arg)
 				preconditions, ok := p.extra.LabelPreconditions[arg]
 				if !ok {
+					log.Warn("status [%s] not support", arg)
 					continue
 				}
 
+				allCheckFailed := true
+				if len(preconditions) == 0 {
+					allCheckFailed = false
+				}
+				// one preconditions should be satisfied
 				for _, precondition := range preconditions {
 					err = p.CheckPrecondition(ctx, precondition)
 					if err != nil {
-						return
+						log.Debug("precondition check failed: %v", err)
+					} else {
+						allCheckFailed = false
 					}
+				}
+				if allCheckFailed {
+					err = fmt.Errorf("all preconditions check failed")
+					log.Warn("%v", err)
+					return
 				}
 
 				err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
@@ -126,6 +128,7 @@ func (p *StatusPlugin) HanldeEvent(ctx *event.EventContext) (err error) {
 				if err != nil {
 					return
 				}
+				log.Debug("[%d] add label %s", number, CmdStatus+"/"+arg)
 				break
 			}
 		}

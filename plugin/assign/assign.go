@@ -11,12 +11,14 @@ import (
 )
 
 var (
-	PluginName    = "assign"
-	SupportEvents = []string{event.EvIssueComment, event.EvPullRequest}
-	CmdCC         = "cc"
-	CmdUnCC       = "uncc"
-	CmdAssign     = "assign"
-	CmdUnAssign   = "unassign"
+	PluginName       = "assign"
+	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest}
+	SupportActions   = []string{event.ActionCreated}
+	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber}
+	CmdCC            = "cc"
+	CmdUnCC          = "uncc"
+	CmdAssign        = "assign"
+	CmdUnAssign      = "unassign"
 )
 
 func init() {
@@ -32,36 +34,21 @@ type AssignPlugin struct {
 	cli client.ClientInterface
 }
 
-func NewAssignPlugin(cli client.ClientInterface, owner string, repo string, base plugin.BasePluginOptions, extra interface{}) (plugin.Plugin, error) {
-	base.Owner = owner
-	base.Repo = repo
-	base.SupportEvents = SupportEvents
+func NewAssignPlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
 	p := &AssignPlugin{
 		cli: cli,
 	}
-	p.BasePlugin = plugin.NewBasePlugin(PluginName, base)
+	options.SupportEvents = SupportEvents
+	options.SupportActions = SupportActions
+	options.Handler = p.hanldeEvent
+
+	p.BasePlugin = plugin.NewBasePlugin(PluginName, options)
 	return p, nil
 }
 
-func (p *AssignPlugin) HanldeEvent(ctx *event.EventContext) (err error) {
-	if !p.IsSupportedEvent(ctx.Type) {
-		return nil
-	}
-
-	var (
-		msg    string
-		number int
-	)
-	obj := client.NewObject(ctx.Payload)
-	msg, err = obj.GetBody()
-	if err != nil {
-		return
-	}
-
-	number, err = obj.GetNumber()
-	if err != nil {
-		return
-	}
+func (p *AssignPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
+	msg, _ := ctx.Object.Body()
+	number, _ := ctx.Object.Number()
 
 	cmds := p.ParseCmdsFromMsg(msg, false)
 	ccUsers := make([]string, 0)
