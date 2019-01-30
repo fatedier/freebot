@@ -18,6 +18,7 @@ var (
 	ErrEventPayload   = httputil.NewHttpError(400, "error event payload")
 	ErrNoSupportEvent = httputil.NewHttpError(400, "no support event")
 	ErrNoOwnerRepo    = httputil.NewHttpError(400, "event no owner and repo info")
+	ErrNoPlugins      = httputil.NewHttpError(400, "no correspond plugins")
 )
 
 type EventHandler struct {
@@ -27,7 +28,7 @@ type EventHandler struct {
 
 func NewEventHandler(plugins map[string][]plugin.Plugin) *EventHandler {
 	return &EventHandler{
-		plugins: make(map[string][]plugin.Plugin),
+		plugins: plugins,
 	}
 }
 
@@ -71,20 +72,29 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 	// get plugins
 	plugins, ok := eh.plugins[owner+"/"+repo]
 	if !ok {
-		return ErrNoOwnerRepo
+		return ErrNoPlugins
 	}
 
 	// handle event by plugins
-	var partialErr error
+	var (
+		notSupport bool
+		partialErr error
+	)
+	object := client.NewObject(payload)
 	for _, p := range plugins {
-		log.Info("[%s/%s] plugin: [%s] event: [%v]", owner, repo, p.Name(), evType)
-		partialErr = p.HanldeEvent(&event.EventContext{
-			Ctx:     ctx,
-			Type:    evType,
-			Owner:   owner,
-			Repo:    repo,
-			Payload: payload,
+		notSupport, partialErr = p.HanldeEvent(&event.EventContext{
+			Ctx:    ctx,
+			Type:   evType,
+			Owner:  owner,
+			Repo:   repo,
+			Object: object,
 		})
+		if notSupport {
+			log.Debug("[%s/%s] plugin [%s] not support", owner, repo, p.Name())
+			continue
+		}
+
+		log.Info("[%s/%s] plugin: [%s] event: [%v]", owner, repo, p.Name(), evType)
 		if partialErr != nil {
 			err = fmt.Errorf("%v;[%s] %v", err, p.Name(), partialErr)
 		}

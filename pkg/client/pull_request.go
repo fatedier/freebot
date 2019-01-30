@@ -33,3 +33,14 @@ func (cli *githubClient) doRequestReviewsCancelOperation(ctx context.Context, op
 	})
 	return err
 }
+
+type MergeOperation struct {
+	Owner  string
+	Repo   string
+	Number int
+}
+
+func (cli *githubClient) doMergeOperation(ctx context.Context, op *MergeOperation) error {
+	_, _, err := cli.client.PullRequests.Merge(ctx, op.Owner, op.Repo, op.Number, "auto merged by freebot", nil)
+	return err
+}

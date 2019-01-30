@@ -7,10 +7,12 @@ import (
 	"net/http"
 
 	"github.com/fatedier/freebot/pkg/client"
+	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/httputil"
 	"github.com/fatedier/freebot/pkg/log"
 	"github.com/fatedier/freebot/plugin"
 	_ "github.com/fatedier/freebot/plugin/assign"
+	_ "github.com/fatedier/freebot/plugin/merge"
 	_ "github.com/fatedier/freebot/plugin/status"
 
 	"github.com/google/go-github/github"
@@ -25,13 +27,19 @@ type Config struct {
 	GithubAccessToken string `json:"github_AccessToken"`
 
 	// owner -> repo -> plugin
-	RepoConfs map[string]map[string]map[string]RepoConfig `json:"repo_confs"`
+	RepoConfs map[string]map[string]RepoConf `json:"repo_confs"`
 }
 
-type RepoConfig struct {
-	Enable bool                     `json:"enable"`
-	Base   plugin.BasePluginOptions `json:"base"`
-	Extra  interface{}              `json:"extra"`
+type RepoConf struct {
+	Alias   config.AliasOptions     `json:"alias"`
+	Roles   config.RoleOptions      `json:"roles"`
+	Plugins map[string]PluginConfig `json:"plugins"`
+}
+
+type PluginConfig struct {
+	Enable        bool                  `json:"enable"`
+	Preconditions []config.Precondition `json:"preconditions"`
+	Extra         interface{}           `json:"extra"`
 }
 
 type Service struct {
@@ -63,25 +71,31 @@ func NewService(cfg Config) (*Service, error) {
 
 	plugins := make(map[string][]plugin.Plugin)
 	for owner, repos := range cfg.RepoConfs {
-		for repo, pluginConfs := range repos {
-			for pluginName, pluginConf := range pluginConfs {
-				if pluginConf.Enable {
-					p, err := plugin.Create(cli, pluginName, owner, repo, pluginConf.Base, pluginConf.Extra)
-					if err != nil {
-						err = fmt.Errorf("create plugin [%s] error: %v", pluginName, err)
-						log.Error("%v", err)
-						return nil, err
-					}
-
-					arrs, ok := plugins[owner+"/"+repo]
-					if ok {
-						arrs = append(arrs, p)
-					} else {
-						arrs = make([]plugin.Plugin, 1)
-						arrs[0] = p
-					}
-					plugins[owner+"/"+repo] = arrs
+		for repo, repoConf := range repos {
+			log.Info("repo [%s/%s] alias: %+v", owner, repo, repoConf.Alias)
+			log.Info("repo [%s/%s] roles: %+v", owner, repo, repoConf.Roles)
+			for pluginName, pluginConf := range repoConf.Plugins {
+				if !pluginConf.Enable {
+					continue
 				}
+
+				baseOptions := plugin.PluginOptions{}
+				baseOptions.Complete(owner, repo, repoConf.Alias, repoConf.Roles, pluginConf.Preconditions, pluginConf.Extra)
+				p, err := plugin.Create(cli, pluginName, baseOptions)
+				if err != nil {
+					err = fmt.Errorf("create plugin [%s] error: %v", pluginName, err)
+					log.Error("%v", err)
+					return nil, err
+				}
+
+				arrs, ok := plugins[owner+"/"+repo]
+				if ok {
+					arrs = append(arrs, p)
+				} else {
+					arrs = make([]plugin.Plugin, 1)
+					arrs[0] = p
+				}
+				plugins[owner+"/"+repo] = arrs
 			}
 		}
 	}
@@ -91,6 +105,7 @@ func NewService(cfg Config) (*Service, error) {
 }
 
 func (svc *Service) Run() error {
+	log.Info("freebot listen on %s", svc.BindAddr)
 	err := http.ListenAndServe(svc.BindAddr, http.HandlerFunc(svc.Handler))
 	return err
 }
