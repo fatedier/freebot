@@ -24,7 +24,7 @@ type Config struct {
 	LogLevel          string `json:"log_level"`
 	LogFile           string `json:"log_file"`
 	LogMaxDays        int64  `json:"log_max_days"`
-	GithubAccessToken string `json:"github_AccessToken"`
+	GithubAccessToken string `json:"github_access_token"`
 
 	// owner -> repo -> plugin
 	RepoConfs map[string]map[string]RepoConf `json:"repo_confs"`
