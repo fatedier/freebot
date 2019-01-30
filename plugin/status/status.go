@@ -16,7 +16,7 @@ import (
 
 var (
 	PluginName       = "status"
-	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest}
+	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment}
 	SupportActions   = []string{event.ActionCreated}
 	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber}
 	CmdStatus        = "status"

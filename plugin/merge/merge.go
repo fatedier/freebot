@@ -8,7 +8,7 @@ import (
 
 var (
 	PluginName       = "merge"
-	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest}
+	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment}
 	SupportActions   = []string{event.ActionCreated}
 	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber, event.ObjectNeedLabels}
 	CmdMerge         = "merge"
