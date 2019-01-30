@@ -310,13 +310,13 @@ func (p *BasePlugin) CheckIsOwner(ctx *event.EventContext) error {
 }
 
 func (p *BasePlugin) CheckIsQA(ctx *event.EventContext) error {
-	author, ok := ctx.Object.Author()
+	commentAuthor, ok := ctx.Object.CommentAuthor()
 	if !ok {
 		return fmt.Errorf("check is qa failed: get comment author failed")
 	}
 
-	if !p.IsQA(author) {
-		return fmt.Errorf("check is qa failed: %s not qa", author)
+	if !p.IsQA(commentAuthor) {
+		return fmt.Errorf("check is qa failed: %s not qa", commentAuthor)
 	}
 	return nil
 }
