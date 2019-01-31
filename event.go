@@ -53,6 +53,8 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 		v := &github.PullRequestReviewCommentEvent{}
 		err = json.Unmarshal([]byte(content), &v)
 		payload = v
+	case event.EvPing:
+		return nil
 	default:
 		return ErrNoSupportEvent
 	}

@@ -10,6 +10,7 @@ const (
 	EvIssueComment             = "issue_comment"
 	EvPullRequest              = "pull_request"
 	EvPullRequestReviewComment = "pull_request_review_comment"
+	EvPing                     = "ping"
 )
 
 const (
