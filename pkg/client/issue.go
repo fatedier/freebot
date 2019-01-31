@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/google/go-github/github"
@@ -17,30 +16,18 @@ type ReplaceLabelOperation struct {
 }
 
 func (cli *githubClient) doReplaceLabelOperation(ctx context.Context, op *ReplaceLabelOperation) error {
-	labels, _, err := cli.client.Issues.ListLabels(ctx, op.Owner, op.Repo, &github.ListOptions{})
-	if err != nil {
-		return err
-	}
-	labelsMap := make(map[string]struct{})
-	for _, l := range labels {
-		labelsMap[l.GetName()] = struct{}{}
-	}
-
 	oldLabels, _, err := cli.client.Issues.ListLabelsByIssue(ctx, op.Owner, op.Repo, op.Number, &github.ListOptions{})
 	if err != nil {
 		return err
 	}
 
-	newLabels := make([]string, 0)
+	newLabels := make([]string, 0, len(op.Labels))
+	// add new labels
 	for _, name := range op.Labels {
-		if _, ok := labelsMap[name]; ok {
-			newLabels = append(newLabels, name)
-		}
-	}
-	if len(newLabels) == 0 {
-		return fmt.Errorf("no replace lables")
+		newLabels = append(newLabels, name)
 	}
 
+	// remove old labels with specified label prefix
 	for _, l := range oldLabels {
 		if !strings.HasPrefix(l.GetName(), op.ReplaceLabelPrefix) {
 			newLabels = append(newLabels, l.GetName())
