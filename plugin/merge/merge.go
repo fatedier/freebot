@@ -1,6 +1,8 @@
 package merge
 
 import (
+	"fmt"
+
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/plugin"
@@ -48,6 +50,17 @@ func (p *MergePlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, err
 		cmd.Name = p.ParseCmdAlias(cmd.Name)
 
 		if cmd.Name == CmdMerge {
+			var mergeable bool
+			mergeable, err = p.cli.CheckMergeable(ctx.Ctx, ctx.Owner, ctx.Repo, number)
+			if err != nil {
+				return
+			}
+
+			if !mergeable {
+				err = fmt.Errorf("[%s] pull request not mergeable", PluginName)
+				return
+			}
+
 			err = p.cli.DoOperation(ctx.Ctx, &client.MergeOperation{
 				Owner:  ctx.Owner,
 				Repo:   ctx.Repo,

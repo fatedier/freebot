@@ -6,6 +6,20 @@ import (
 	"github.com/google/go-github/github"
 )
 
+func (cli *githubClient) CheckMergeable(ctx context.Context, owner, repo string, number int) (bool, error) {
+	pr, _, err := cli.client.PullRequests.Get(ctx, owner, repo, number)
+	if err != nil {
+		return false, err
+	}
+
+	if pr == nil {
+		return false, nil
+	}
+
+	return pr.GetMergeable(), nil
+}
+
+// operations
 type RequestReviewsOperation struct {
 	Owner     string
 	Repo      string

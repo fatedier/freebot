@@ -9,7 +9,10 @@ import (
 
 type ClientInterface interface {
 	DoOperation(ctx context.Context, op interface{}) error
+	CheckMergeable(ctx context.Context, owner, repo string, number int) (bool, error)
 }
+
+var _ ClientInterface = &githubClient{}
 
 type githubClient struct {
 	client *github.Client
