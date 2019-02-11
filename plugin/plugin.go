@@ -19,7 +19,7 @@ func init() {
 
 type CreatorFn func(cli client.ClientInterface, options PluginOptions) (Plugin, error)
 
-type Handler func(ctx *event.EventContext) (notSupport bool, err error)
+type Handler func(ctx *event.EventContext) (err error)
 
 func Register(name string, fn CreatorFn) {
 	creators[name] = fn
@@ -32,6 +32,13 @@ func Create(cli client.ClientInterface, name string, options PluginOptions) (p P
 		err = fmt.Errorf("plugin [%s] is not registered", name)
 	}
 	return
+}
+
+type HandlerOptions struct {
+	Events           []string
+	Actions          []string // empty means support all
+	ObjectNeedParams []int
+	Handler          Handler
 }
 
 type Plugin interface {
@@ -48,10 +55,7 @@ type PluginOptions struct {
 	Extra         interface{}
 
 	// filled by plugin
-	SupportEvents    []string
-	SupportActions   []string
-	ObjectNeedParams []int
-	Handler          Handler
+	Handlers []HandlerOptions
 }
 
 func (options *PluginOptions) Complete(owner, repo string, alias config.AliasOptions,
@@ -77,10 +81,7 @@ type BasePlugin struct {
 	preconditions []config.Precondition
 	extra         interface{}
 
-	supportEvents    []string
-	supportActions   []string // empty means support all
-	objectNeedParams []int
-	handler          Handler
+	handlers []HandlerOptions
 }
 
 func NewBasePlugin(name string, options PluginOptions) *BasePlugin {
@@ -92,11 +93,7 @@ func NewBasePlugin(name string, options PluginOptions) *BasePlugin {
 		roles:         options.Roles,
 		preconditions: options.Preconditions,
 		extra:         options.Extra,
-
-		supportEvents:    options.SupportEvents,
-		supportActions:   options.SupportActions,
-		objectNeedParams: options.ObjectNeedParams,
-		handler:          options.Handler,
+		handlers:      options.Handlers,
 	}
 }
 
@@ -141,32 +138,32 @@ func (p *BasePlugin) UnmarshalTo(v interface{}) error {
 	return nil
 }
 
-func (p *BasePlugin) IsSupported(ctx *event.EventContext) bool {
-	if len(p.supportEvents) > 0 {
-		if !p.IsSupportedEvent(ctx.Type) {
+func (p *BasePlugin) IsSupported(ctx *event.EventContext, handlerOptions HandlerOptions) bool {
+	if len(handlerOptions.Events) > 0 {
+		if !p.IsSupportedEvent(ctx.Type, handlerOptions) {
 			return false
 		}
 	}
 
-	if len(p.supportActions) > 0 {
+	if len(handlerOptions.Actions) > 0 {
 		action, ok := ctx.Object.Action()
 		if !ok {
 			return false
 		}
 
-		if !p.IsSupportedAction(action) {
+		if !p.IsSupportedAction(action, handlerOptions) {
 			return false
 		}
 	}
 	return true
 }
 
-func (p *BasePlugin) IsSupportedEvent(eventType string) bool {
-	if len(p.supportEvents) == 0 {
+func (p *BasePlugin) IsSupportedEvent(eventType string, handlerOptions HandlerOptions) bool {
+	if len(handlerOptions.Events) == 0 {
 		return true
 	}
 
-	for _, e := range p.supportEvents {
+	for _, e := range handlerOptions.Events {
 		if e == eventType {
 			return true
 		}
@@ -174,12 +171,12 @@ func (p *BasePlugin) IsSupportedEvent(eventType string) bool {
 	return false
 }
 
-func (p *BasePlugin) IsSupportedAction(action string) bool {
-	if len(p.supportActions) == 0 {
+func (p *BasePlugin) IsSupportedAction(action string, handlerOptions HandlerOptions) bool {
+	if len(handlerOptions.Actions) == 0 {
 		return true
 	}
 
-	for _, v := range p.supportActions {
+	for _, v := range handlerOptions.Actions {
 		if v == action {
 			return true
 		}
@@ -362,47 +359,65 @@ func (p *BasePlugin) CheckRequiredLabelPrefix(ctx *event.EventContext, prefix []
 }
 
 func (p *BasePlugin) HanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
-	if !p.IsSupported(ctx) {
-		log.Debug("plugin [%s] type [%s] or action not support", p.name, ctx.Type)
-		return true, nil
-	}
-
-	for _, param := range p.objectNeedParams {
-		var ok bool
-		paramName := ""
-		switch param {
-		case event.ObjectNeedBody:
-			_, ok = ctx.Object.Body()
-			paramName = "body"
-		case event.ObjectNeedNumber:
-			_, ok = ctx.Object.Number()
-			paramName = "number"
-		case event.ObjectNeedAction:
-			_, ok = ctx.Object.Action()
-			paramName = "action"
-		case event.ObjectNeedAuthor:
-			_, ok = ctx.Object.Author()
-			paramName = "author"
-		case event.ObjectNeedCommentAuthor:
-			_, ok = ctx.Object.CommentAuthor()
-			paramName = "comment author"
-		case event.ObjectNeedLabels:
-			_, ok = ctx.Object.Labels()
-			paramName = "labels"
-		default:
-			log.Error("error ObjectNeedParams setting")
+	handled := false
+	meetPreconditions := false
+	for _, handlerOptions := range p.handlers {
+		if !p.IsSupported(ctx, handlerOptions) {
 			continue
 		}
+		handled = true
 
-		if !ok {
-			err = fmt.Errorf("can't get %s from payload", paramName)
+		for _, param := range handlerOptions.ObjectNeedParams {
+			var ok bool
+			paramName := ""
+			switch param {
+			case event.ObjectNeedBody:
+				_, ok = ctx.Object.Body()
+				paramName = "body"
+			case event.ObjectNeedNumber:
+				_, ok = ctx.Object.Number()
+				paramName = "number"
+			case event.ObjectNeedAction:
+				_, ok = ctx.Object.Action()
+				paramName = "action"
+			case event.ObjectNeedAuthor:
+				_, ok = ctx.Object.Author()
+				paramName = "author"
+			case event.ObjectNeedCommentAuthor:
+				_, ok = ctx.Object.CommentAuthor()
+				paramName = "comment author"
+			case event.ObjectNeedLabels:
+				_, ok = ctx.Object.Labels()
+				paramName = "labels"
+			default:
+				log.Error("error ObjectNeedParams setting")
+				continue
+			}
+
+			if !ok {
+				err = fmt.Errorf("can't get %s from payload", paramName)
+				return
+			}
+		}
+
+		// only check plugin preconditions once
+		if !meetPreconditions {
+			err = p.CheckPluginPreconditions(ctx)
+			if err != nil {
+				return
+			}
+			meetPreconditions = true
+		}
+
+		err = handlerOptions.Handler(ctx)
+		if err != nil {
 			return
 		}
 	}
 
-	err = p.CheckPluginPreconditions(ctx)
-	if err != nil {
-		return
+	if !handled {
+		log.Debug("plugin [%s] handlers not support", p.name)
+		return true, nil
 	}
-	return p.handler(ctx)
+	return false, nil
 }

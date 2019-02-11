@@ -9,11 +9,8 @@ import (
 )
 
 var (
-	PluginName       = "merge"
-	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment}
-	SupportActions   = []string{event.ActionCreated}
-	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber, event.ObjectNeedLabels}
-	CmdMerge         = "merge"
+	PluginName = "merge"
+	CmdMerge   = "merge"
 )
 
 func init() {
@@ -33,15 +30,22 @@ func NewMergePlugin(cli client.ClientInterface, options plugin.PluginOptions) (p
 	p := &MergePlugin{
 		cli: cli,
 	}
-	options.SupportEvents = SupportEvents
-	options.SupportActions = SupportActions
-	options.Handler = p.hanldeEvent
+
+	handlerOptions := []plugin.HandlerOptions{
+		plugin.HandlerOptions{
+			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
+			Actions:          []string{event.ActionCreated},
+			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber, event.ObjectNeedLabels},
+			Handler:          p.hanldeCommentEvent,
+		},
+	}
+	options.Handlers = handlerOptions
 
 	p.BasePlugin = plugin.NewBasePlugin(PluginName, options)
 	return p, nil
 }
 
-func (p *MergePlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
+func (p *MergePlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 

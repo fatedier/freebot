@@ -14,8 +14,14 @@ const (
 )
 
 const (
-	ActionCreated = "created"
-	ActionDeleted = "deleted"
+	ActionCreated              = "created"
+	ActionOpened               = "opened"
+	ActionDeleted              = "deleted"
+	ActionClosed               = "closed"
+	ActionLabeled              = "labeled"
+	ActionUnlabeled            = "unlabeled"
+	ActionReviewRequested      = "review_requested"
+	ActionReviewRequestRemoved = "review_request_removed"
 )
 
 const (

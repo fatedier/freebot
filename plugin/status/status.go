@@ -15,11 +15,8 @@ import (
 */
 
 var (
-	PluginName       = "status"
-	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment}
-	SupportActions   = []string{event.ActionCreated}
-	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber}
-	CmdStatus        = "status"
+	PluginName = "status"
+	CmdStatus  = "status"
 )
 
 func init() {
@@ -29,28 +26,32 @@ func init() {
 /*
 	example:
 
-	"label_precondition": {
-		"wip": [],
-		"wait-review": [],
-		"request-changes": [],
-		"approved": [{
-			"is_owner": true
-		}],
-		"testing": [{
-			"required_labels": ["status/approved"]
-		}],
-		"merge-ready": [
-			{
-				"is_owner": true,
-			},
-			{
-				"is_qa": true,
-				"required_labels": ["status/testing"]
-			}
-		]
+	{
+		"init_status": "wip",
+		"label_precondition": {
+			"wip": [],
+			"wait-review": [],
+			"request-changes": [],
+			"approved": [{
+				"is_owner": true
+			}],
+			"testing": [{
+				"required_labels": ["status/approved"]
+			}],
+			"merge-ready": [
+				{
+					"is_owner": true,
+				},
+				{
+					"is_qa": true,
+					"required_labels": ["status/testing"]
+				}
+			]
+		}
 	}
 */
 type Extra struct {
+	InitStatus         string                           `json:"init_status"`
 	LabelPreconditions map[string][]config.Precondition `json:"label_precondition"`
 }
 
@@ -65,10 +66,22 @@ func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 	p := &StatusPlugin{
 		cli: cli,
 	}
-	options.SupportEvents = SupportEvents
-	options.SupportActions = SupportActions
-	options.ObjectNeedParams = ObjectNeedParams
-	options.Handler = p.hanldeEvent
+
+	handlerOptions := []plugin.HandlerOptions{
+		plugin.HandlerOptions{
+			Events:           []string{event.EvPullRequest},
+			Actions:          []string{event.ActionOpened},
+			ObjectNeedParams: []int{event.ObjectNeedNumber},
+			Handler:          p.handlePullRequestEvent,
+		},
+		plugin.HandlerOptions{
+			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
+			Actions:          []string{event.ActionCreated},
+			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
+			Handler:          p.hanldeCommentEvent,
+		},
+	}
+	options.Handlers = handlerOptions
 
 	p.BasePlugin = plugin.NewBasePlugin(PluginName, options)
 
@@ -79,7 +92,7 @@ func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 	return p, nil
 }
 
-func (p *StatusPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
+func (p *StatusPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 
@@ -132,6 +145,24 @@ func (p *StatusPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, er
 				break
 			}
 		}
+	}
+	return
+}
+
+func (p *StatusPlugin) handlePullRequestEvent(ctx *event.EventContext) (err error) {
+	number, _ := ctx.Object.Number()
+	if p.extra.InitStatus != "" {
+		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
+			Owner:              ctx.Owner,
+			Repo:               ctx.Repo,
+			ReplaceLabelPrefix: CmdStatus + "/",
+			Number:             number,
+			Labels:             []string{CmdStatus + "/" + p.extra.InitStatus},
+		})
+		if err != nil {
+			return
+		}
+		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.InitStatus)
 	}
 	return
 }
