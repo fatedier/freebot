@@ -286,22 +286,22 @@ func (p *BasePlugin) CheckPrecondition(ctx *event.EventContext, precondition con
 
 func (p *BasePlugin) CheckIsAuthor(ctx *event.EventContext) error {
 	author, ok := ctx.Object.Author()
-	commentAuthor, ok2 := ctx.Object.CommentAuthor()
-	isAuthor := author == commentAuthor
+	sender, ok2 := ctx.Object.SenderUser()
+	isAuthor := author == sender
 	if !ok || !ok2 || !isAuthor {
-		return fmt.Errorf("check is author failed, author [%s], commentAuthor [%s]", author, commentAuthor)
+		return fmt.Errorf("check is author failed, author [%s], sender [%s]", author, sender)
 	}
 	return nil
 }
 
 func (p *BasePlugin) CheckRequiredRoles(ctx *event.EventContext, roles []string) error {
-	commentAuthor, ok := ctx.Object.CommentAuthor()
+	sender, ok := ctx.Object.SenderUser()
 	if !ok {
-		return fmt.Errorf("check required roles failed, get comment author failed")
+		return fmt.Errorf("check required roles failed, get sender failed")
 	}
 
-	if !p.IsSpecifiedRoles(commentAuthor, roles) {
-		return fmt.Errorf("check required roles failed: %s not in roles %v", commentAuthor, roles)
+	if !p.IsSpecifiedRoles(sender, roles) {
+		return fmt.Errorf("check required roles failed: %s not in roles %v", sender, roles)
 	}
 	return nil
 }
@@ -374,9 +374,15 @@ func (p *BasePlugin) HanldeEvent(ctx *event.EventContext) (notSupport bool, err 
 			case event.ObjectNeedCommentAuthor:
 				_, ok = ctx.Object.CommentAuthor()
 				paramName = "comment author"
+			case event.ObjectNeedSenderUser:
+				_, ok = ctx.Object.SenderUser()
+				paramName = "sender user"
 			case event.ObjectNeedLabels:
 				_, ok = ctx.Object.Labels()
 				paramName = "labels"
+			case event.ObjectNeedReviewState:
+				_, ok = ctx.Object.ReviewState()
+				paramName = "review state"
 			default:
 				log.Error("error ObjectNeedParams setting")
 				continue
