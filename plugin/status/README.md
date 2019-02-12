@@ -17,6 +17,10 @@
 ```
 {
     "extra": {
+        "init": {
+            "status": "wip",
+            "preconditions": []
+        },
         "label_precondition": {
             "wip": [],
             "wait-review": [],
@@ -48,6 +52,10 @@ approved 状态只能由 owner 修改。
 testing 状态需要处于 approved 状态才能修改。
 
 merge-ready 状态有两种情况都可以，一种是 owner 可以直接修改，另外一种是 QA 可以修改且需要处于 testing 状态。
+
+#### init
+
+PR 被创建时，如果满足 preconditions 的条件，则会自动加上的状态标签。
 
 ### Support Events
 

@@ -70,13 +70,7 @@ freebot 是一个帮助团队基于 github 的 issue 和 pull request 进行工�
 
 #### 角色
 
-目前有三种角色，owner, QA, normal。
-
-* owner: 管理者。
-* QA: 质量管理人员。
-* normal: 普通开发者。
-
-可以为每一个 repo 分别指定各个角色的 user，之后可以在插件中使用，例如限制只有 owner 才能执行某个插件的操作。
+可以为指定的用户分配指定角色，在之后的插件中的前置条件可以对 author 的角色有要求。例如限制只有 owner 角色的用户才能执行某些命令。
 
 示例:
 
