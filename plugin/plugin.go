@@ -211,31 +211,38 @@ func (p *BasePlugin) ParseUserAlias(str string) string {
 	return str
 }
 
-func (p *BasePlugin) IsOwner(user string) bool {
-	for _, v := range p.roles.Owner {
-		if v == user {
-			return true
+func (p *BasePlugin) IsSpecifiedRoles(user string, roles []string) bool {
+	for _, role := range roles {
+		users, ok := p.roles[role]
+		if !ok {
+			return false
 		}
-	}
-	return false
-}
 
-func (p *BasePlugin) IsQA(user string) bool {
-	for _, v := range p.roles.QA {
-		if v == user {
-			return true
+		find := false
+		for _, t := range users {
+			if t == user {
+				find = true
+				break
+			}
+		}
+		if !find {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func (p *BasePlugin) CheckPluginPreconditions(ctx *event.EventContext) (err error) {
-	if len(p.preconditions) == 0 {
+	return p.CheckPreconditions(ctx, p.preconditions)
+}
+
+func (p *BasePlugin) CheckPreconditions(ctx *event.EventContext, preconditions []config.Precondition) (err error) {
+	if len(preconditions) == 0 {
 		return nil
 	}
 
 	var partialErr error
-	for _, pre := range p.preconditions {
+	for _, pre := range preconditions {
 		partialErr = p.CheckPrecondition(ctx, pre)
 		if partialErr == nil {
 			return nil
@@ -254,15 +261,8 @@ func (p *BasePlugin) CheckPrecondition(ctx *event.EventContext, precondition con
 		}
 	}
 
-	if precondition.IsOwner {
-		err = p.CheckIsOwner(ctx)
-		if err != nil {
-			return
-		}
-	}
-
-	if precondition.IsQA {
-		err = p.CheckIsQA(ctx)
+	if len(precondition.RequiredRoles) > 0 {
+		err = p.CheckRequiredRoles(ctx, precondition.RequiredRoles)
 		if err != nil {
 			return
 		}
@@ -294,26 +294,14 @@ func (p *BasePlugin) CheckIsAuthor(ctx *event.EventContext) error {
 	return nil
 }
 
-func (p *BasePlugin) CheckIsOwner(ctx *event.EventContext) error {
+func (p *BasePlugin) CheckRequiredRoles(ctx *event.EventContext, roles []string) error {
 	commentAuthor, ok := ctx.Object.CommentAuthor()
 	if !ok {
-		return fmt.Errorf("check is owner failed: get comment author failed")
+		return fmt.Errorf("check required roles failed, get comment author failed")
 	}
 
-	if !p.IsOwner(commentAuthor) {
-		return fmt.Errorf("check is owner failed: %s not owner", commentAuthor)
-	}
-	return nil
-}
-
-func (p *BasePlugin) CheckIsQA(ctx *event.EventContext) error {
-	commentAuthor, ok := ctx.Object.CommentAuthor()
-	if !ok {
-		return fmt.Errorf("check is qa failed: get comment author failed")
-	}
-
-	if !p.IsQA(commentAuthor) {
-		return fmt.Errorf("check is qa failed: %s not qa", commentAuthor)
+	if !p.IsSpecifiedRoles(commentAuthor, roles) {
+		return fmt.Errorf("check required roles failed: %s not in roles %v", commentAuthor, roles)
 	}
 	return nil
 }

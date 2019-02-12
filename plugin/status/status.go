@@ -1,8 +1,6 @@
 package status
 
 import (
-	"fmt"
-
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
@@ -50,8 +48,13 @@ func init() {
 		}
 	}
 */
+type InitStatus struct {
+	Status        string                `json:"status"`
+	Preconditions []config.Precondition `json:"preconditions"`
+}
+
 type Extra struct {
-	InitStatus         string                           `json:"init_status"`
+	Init               InitStatus                       `json:"init"`
 	LabelPreconditions map[string][]config.Precondition `json:"label_precondition"`
 }
 
@@ -112,22 +115,10 @@ func (p *StatusPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
 					continue
 				}
 
-				allCheckFailed := true
-				if len(preconditions) == 0 {
-					allCheckFailed = false
-				}
 				// one preconditions should be satisfied
-				for _, precondition := range preconditions {
-					err = p.CheckPrecondition(ctx, precondition)
-					if err != nil {
-						log.Debug("precondition check failed: %v", err)
-					} else {
-						allCheckFailed = false
-					}
-				}
-				if allCheckFailed {
-					err = fmt.Errorf("all preconditions check failed")
-					log.Warn("%v", err)
+				err = p.CheckPreconditions(ctx, preconditions)
+				if err != nil {
+					log.Warn("all preconditions check failed: %v", err)
 					return
 				}
 
@@ -151,18 +142,24 @@ func (p *StatusPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
 
 func (p *StatusPlugin) handlePullRequestEvent(ctx *event.EventContext) (err error) {
 	number, _ := ctx.Object.Number()
-	if p.extra.InitStatus != "" {
+	if p.extra.Init.Status != "" {
+		err = p.CheckPreconditions(ctx, p.extra.Init.Preconditions)
+		if err != nil {
+			log.Warn("preconditions check failed: %v", err)
+			return
+		}
+
 		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
 			Owner:              ctx.Owner,
 			Repo:               ctx.Repo,
 			ReplaceLabelPrefix: CmdStatus + "/",
 			Number:             number,
-			Labels:             []string{CmdStatus + "/" + p.extra.InitStatus},
+			Labels:             []string{CmdStatus + "/" + p.extra.Init.Status},
 		})
 		if err != nil {
 			return
 		}
-		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.InitStatus)
+		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Init.Status)
 	}
 	return
 }
