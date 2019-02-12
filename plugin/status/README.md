@@ -21,22 +21,28 @@
             "status": "wip",
             "preconditions": []
         },
+        "approved": {
+            "status": "approved",
+            "preconditions": [{
+                "required_roles": ["owner"]
+            }]
+        },
         "label_precondition": {
             "wip": [],
             "wait-review": [],
             "request-changes": [],
             "approved": [{
-                "is_owner": true
+                "required_roles": ["owner"]
             }],
             "testing": [{
                 "required_labels": ["status/approved"]
             }],
             "merge-ready": [
                 {
-                    "is_owner": true
+                    "required_roles": ["owner"]
                 },
                 {
-                    "is_qa": true,
+                    "required_roles": ["qa"],
                     "required_labels": ["status/testing"]
                 }
             ]
@@ -56,6 +62,10 @@ merge-ready 状态有两种情况都可以，一种是 owner 可以直接修改�
 #### init
 
 PR 被创建时，如果满足 preconditions 的条件，则会自动加上的状态标签。
+
+#### approved
+
+PR 被 approved 之后，如果满足 preconditions 的条件，则会自动加上的状态标签。
 
 ### Support Events
 
