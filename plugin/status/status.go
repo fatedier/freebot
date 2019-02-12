@@ -1,8 +1,6 @@
 package status
 
 import (
-	"fmt"
-
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
@@ -15,11 +13,8 @@ import (
 */
 
 var (
-	PluginName       = "status"
-	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment}
-	SupportActions   = []string{event.ActionCreated}
-	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber}
-	CmdStatus        = "status"
+	PluginName = "status"
+	CmdStatus  = "status"
 )
 
 func init() {
@@ -29,28 +24,38 @@ func init() {
 /*
 	example:
 
-	"label_precondition": {
-		"wip": [],
-		"wait-review": [],
-		"request-changes": [],
-		"approved": [{
-			"is_owner": true
-		}],
-		"testing": [{
-			"required_labels": ["status/approved"]
-		}],
-		"merge-ready": [
-			{
-				"is_owner": true,
-			},
-			{
-				"is_qa": true,
-				"required_labels": ["status/testing"]
-			}
-		]
+	{
+		"init_status": "wip",
+		"label_precondition": {
+			"wip": [],
+			"wait-review": [],
+			"request-changes": [],
+			"approved": [{
+				"is_owner": true
+			}],
+			"testing": [{
+				"required_labels": ["status/approved"]
+			}],
+			"merge-ready": [
+				{
+					"is_owner": true,
+				},
+				{
+					"is_qa": true,
+					"required_labels": ["status/testing"]
+				}
+			]
+		}
 	}
 */
+type LabelStatus struct {
+	Status        string                `json:"status"`
+	Preconditions []config.Precondition `json:"preconditions"`
+}
+
 type Extra struct {
+	Init               LabelStatus                      `json:"init"`
+	Approved           LabelStatus                      `json:"approved"`
 	LabelPreconditions map[string][]config.Precondition `json:"label_precondition"`
 }
 
@@ -65,10 +70,28 @@ func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 	p := &StatusPlugin{
 		cli: cli,
 	}
-	options.SupportEvents = SupportEvents
-	options.SupportActions = SupportActions
-	options.ObjectNeedParams = ObjectNeedParams
-	options.Handler = p.hanldeEvent
+
+	handlerOptions := []plugin.HandlerOptions{
+		plugin.HandlerOptions{
+			Events:           []string{event.EvPullRequest},
+			Actions:          []string{event.ActionOpened},
+			ObjectNeedParams: []int{event.ObjectNeedNumber},
+			Handler:          p.handlePullRequestEvent,
+		},
+		plugin.HandlerOptions{
+			Events:           []string{event.EvPullRequestReview},
+			Actions:          []string{event.ActionSubmitted},
+			ObjectNeedParams: []int{event.ObjectNeedNumber, event.ObjectNeedSenderUser, event.ObjectNeedReviewState},
+			Handler:          p.handlePullRequestReviewEvent,
+		},
+		plugin.HandlerOptions{
+			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
+			Actions:          []string{event.ActionCreated},
+			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
+			Handler:          p.hanldeCommentEvent,
+		},
+	}
+	options.Handlers = handlerOptions
 
 	p.BasePlugin = plugin.NewBasePlugin(PluginName, options)
 
@@ -79,7 +102,7 @@ func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 	return p, nil
 }
 
-func (p *StatusPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
+func (p *StatusPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 
@@ -99,22 +122,10 @@ func (p *StatusPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, er
 					continue
 				}
 
-				allCheckFailed := true
-				if len(preconditions) == 0 {
-					allCheckFailed = false
-				}
 				// one preconditions should be satisfied
-				for _, precondition := range preconditions {
-					err = p.CheckPrecondition(ctx, precondition)
-					if err != nil {
-						log.Debug("precondition check failed: %v", err)
-					} else {
-						allCheckFailed = false
-					}
-				}
-				if allCheckFailed {
-					err = fmt.Errorf("all preconditions check failed")
-					log.Warn("%v", err)
+				err = p.CheckPreconditions(ctx, preconditions)
+				if err != nil {
+					log.Warn("all preconditions check failed: %v", err)
 					return
 				}
 
@@ -132,6 +143,59 @@ func (p *StatusPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, er
 				break
 			}
 		}
+	}
+	return
+}
+
+func (p *StatusPlugin) handlePullRequestEvent(ctx *event.EventContext) (err error) {
+	if p.extra.Init.Status != "" {
+		number, _ := ctx.Object.Number()
+		err = p.CheckPreconditions(ctx, p.extra.Init.Preconditions)
+		if err != nil {
+			log.Warn("init preconditions check failed: %v", err)
+			return
+		}
+
+		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
+			Owner:              ctx.Owner,
+			Repo:               ctx.Repo,
+			ReplaceLabelPrefix: CmdStatus + "/",
+			Number:             number,
+			Labels:             []string{CmdStatus + "/" + p.extra.Init.Status},
+		})
+		if err != nil {
+			return
+		}
+		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Init.Status)
+	}
+	return
+}
+
+func (p *StatusPlugin) handlePullRequestReviewEvent(ctx *event.EventContext) (err error) {
+	if p.extra.Approved.Status != "" {
+		number, _ := ctx.Object.Number()
+		reviewState, _ := ctx.Object.ReviewState()
+		if reviewState != event.ReviewStateApproved {
+			return
+		}
+
+		err = p.CheckPreconditions(ctx, p.extra.Approved.Preconditions)
+		if err != nil {
+			log.Warn("approved preconditions check failed: %v", err)
+			return
+		}
+
+		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
+			Owner:              ctx.Owner,
+			Repo:               ctx.Repo,
+			ReplaceLabelPrefix: CmdStatus + "/",
+			Number:             number,
+			Labels:             []string{CmdStatus + "/" + p.extra.Approved.Status},
+		})
+		if err != nil {
+			return
+		}
+		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Approved.Status)
 	}
 	return
 }

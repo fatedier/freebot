@@ -19,7 +19,7 @@ func init() {
 
 type CreatorFn func(cli client.ClientInterface, options PluginOptions) (Plugin, error)
 
-type Handler func(ctx *event.EventContext) (notSupport bool, err error)
+type Handler func(ctx *event.EventContext) (err error)
 
 func Register(name string, fn CreatorFn) {
 	creators[name] = fn
@@ -32,6 +32,13 @@ func Create(cli client.ClientInterface, name string, options PluginOptions) (p P
 		err = fmt.Errorf("plugin [%s] is not registered", name)
 	}
 	return
+}
+
+type HandlerOptions struct {
+	Events           []string
+	Actions          []string // empty means support all
+	ObjectNeedParams []int
+	Handler          Handler
 }
 
 type Plugin interface {
@@ -48,10 +55,7 @@ type PluginOptions struct {
 	Extra         interface{}
 
 	// filled by plugin
-	SupportEvents    []string
-	SupportActions   []string
-	ObjectNeedParams []int
-	Handler          Handler
+	Handlers []HandlerOptions
 }
 
 func (options *PluginOptions) Complete(owner, repo string, alias config.AliasOptions,
@@ -77,10 +81,7 @@ type BasePlugin struct {
 	preconditions []config.Precondition
 	extra         interface{}
 
-	supportEvents    []string
-	supportActions   []string // empty means support all
-	objectNeedParams []int
-	handler          Handler
+	handlers []HandlerOptions
 }
 
 func NewBasePlugin(name string, options PluginOptions) *BasePlugin {
@@ -92,11 +93,7 @@ func NewBasePlugin(name string, options PluginOptions) *BasePlugin {
 		roles:         options.Roles,
 		preconditions: options.Preconditions,
 		extra:         options.Extra,
-
-		supportEvents:    options.SupportEvents,
-		supportActions:   options.SupportActions,
-		objectNeedParams: options.ObjectNeedParams,
-		handler:          options.Handler,
+		handlers:      options.Handlers,
 	}
 }
 
@@ -141,32 +138,32 @@ func (p *BasePlugin) UnmarshalTo(v interface{}) error {
 	return nil
 }
 
-func (p *BasePlugin) IsSupported(ctx *event.EventContext) bool {
-	if len(p.supportEvents) > 0 {
-		if !p.IsSupportedEvent(ctx.Type) {
+func (p *BasePlugin) IsSupported(ctx *event.EventContext, handlerOptions HandlerOptions) bool {
+	if len(handlerOptions.Events) > 0 {
+		if !p.IsSupportedEvent(ctx.Type, handlerOptions) {
 			return false
 		}
 	}
 
-	if len(p.supportActions) > 0 {
+	if len(handlerOptions.Actions) > 0 {
 		action, ok := ctx.Object.Action()
 		if !ok {
 			return false
 		}
 
-		if !p.IsSupportedAction(action) {
+		if !p.IsSupportedAction(action, handlerOptions) {
 			return false
 		}
 	}
 	return true
 }
 
-func (p *BasePlugin) IsSupportedEvent(eventType string) bool {
-	if len(p.supportEvents) == 0 {
+func (p *BasePlugin) IsSupportedEvent(eventType string, handlerOptions HandlerOptions) bool {
+	if len(handlerOptions.Events) == 0 {
 		return true
 	}
 
-	for _, e := range p.supportEvents {
+	for _, e := range handlerOptions.Events {
 		if e == eventType {
 			return true
 		}
@@ -174,12 +171,12 @@ func (p *BasePlugin) IsSupportedEvent(eventType string) bool {
 	return false
 }
 
-func (p *BasePlugin) IsSupportedAction(action string) bool {
-	if len(p.supportActions) == 0 {
+func (p *BasePlugin) IsSupportedAction(action string, handlerOptions HandlerOptions) bool {
+	if len(handlerOptions.Actions) == 0 {
 		return true
 	}
 
-	for _, v := range p.supportActions {
+	for _, v := range handlerOptions.Actions {
 		if v == action {
 			return true
 		}
@@ -214,31 +211,38 @@ func (p *BasePlugin) ParseUserAlias(str string) string {
 	return str
 }
 
-func (p *BasePlugin) IsOwner(user string) bool {
-	for _, v := range p.roles.Owner {
-		if v == user {
-			return true
+func (p *BasePlugin) IsSpecifiedRoles(user string, roles []string) bool {
+	for _, role := range roles {
+		users, ok := p.roles[role]
+		if !ok {
+			return false
 		}
-	}
-	return false
-}
 
-func (p *BasePlugin) IsQA(user string) bool {
-	for _, v := range p.roles.QA {
-		if v == user {
-			return true
+		find := false
+		for _, t := range users {
+			if t == user {
+				find = true
+				break
+			}
+		}
+		if !find {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func (p *BasePlugin) CheckPluginPreconditions(ctx *event.EventContext) (err error) {
-	if len(p.preconditions) == 0 {
+	return p.CheckPreconditions(ctx, p.preconditions)
+}
+
+func (p *BasePlugin) CheckPreconditions(ctx *event.EventContext, preconditions []config.Precondition) (err error) {
+	if len(preconditions) == 0 {
 		return nil
 	}
 
 	var partialErr error
-	for _, pre := range p.preconditions {
+	for _, pre := range preconditions {
 		partialErr = p.CheckPrecondition(ctx, pre)
 		if partialErr == nil {
 			return nil
@@ -257,15 +261,8 @@ func (p *BasePlugin) CheckPrecondition(ctx *event.EventContext, precondition con
 		}
 	}
 
-	if precondition.IsOwner {
-		err = p.CheckIsOwner(ctx)
-		if err != nil {
-			return
-		}
-	}
-
-	if precondition.IsQA {
-		err = p.CheckIsQA(ctx)
+	if len(precondition.RequiredRoles) > 0 {
+		err = p.CheckRequiredRoles(ctx, precondition.RequiredRoles)
 		if err != nil {
 			return
 		}
@@ -289,34 +286,22 @@ func (p *BasePlugin) CheckPrecondition(ctx *event.EventContext, precondition con
 
 func (p *BasePlugin) CheckIsAuthor(ctx *event.EventContext) error {
 	author, ok := ctx.Object.Author()
-	commentAuthor, ok2 := ctx.Object.CommentAuthor()
-	isAuthor := author == commentAuthor
+	sender, ok2 := ctx.Object.SenderUser()
+	isAuthor := author == sender
 	if !ok || !ok2 || !isAuthor {
-		return fmt.Errorf("check is author failed, author [%s], commentAuthor [%s]", author, commentAuthor)
+		return fmt.Errorf("check is author failed, author [%s], sender [%s]", author, sender)
 	}
 	return nil
 }
 
-func (p *BasePlugin) CheckIsOwner(ctx *event.EventContext) error {
-	commentAuthor, ok := ctx.Object.CommentAuthor()
+func (p *BasePlugin) CheckRequiredRoles(ctx *event.EventContext, roles []string) error {
+	sender, ok := ctx.Object.SenderUser()
 	if !ok {
-		return fmt.Errorf("check is owner failed: get comment author failed")
+		return fmt.Errorf("check required roles failed, get sender failed")
 	}
 
-	if !p.IsOwner(commentAuthor) {
-		return fmt.Errorf("check is owner failed: %s not owner", commentAuthor)
-	}
-	return nil
-}
-
-func (p *BasePlugin) CheckIsQA(ctx *event.EventContext) error {
-	commentAuthor, ok := ctx.Object.CommentAuthor()
-	if !ok {
-		return fmt.Errorf("check is qa failed: get comment author failed")
-	}
-
-	if !p.IsQA(commentAuthor) {
-		return fmt.Errorf("check is qa failed: %s not qa", commentAuthor)
+	if !p.IsSpecifiedRoles(sender, roles) {
+		return fmt.Errorf("check required roles failed: %s not in roles %v", sender, roles)
 	}
 	return nil
 }
@@ -362,47 +347,71 @@ func (p *BasePlugin) CheckRequiredLabelPrefix(ctx *event.EventContext, prefix []
 }
 
 func (p *BasePlugin) HanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
-	if !p.IsSupported(ctx) {
-		log.Debug("plugin [%s] type [%s] or action not support", p.name, ctx.Type)
-		return true, nil
-	}
-
-	for _, param := range p.objectNeedParams {
-		var ok bool
-		paramName := ""
-		switch param {
-		case event.ObjectNeedBody:
-			_, ok = ctx.Object.Body()
-			paramName = "body"
-		case event.ObjectNeedNumber:
-			_, ok = ctx.Object.Number()
-			paramName = "number"
-		case event.ObjectNeedAction:
-			_, ok = ctx.Object.Action()
-			paramName = "action"
-		case event.ObjectNeedAuthor:
-			_, ok = ctx.Object.Author()
-			paramName = "author"
-		case event.ObjectNeedCommentAuthor:
-			_, ok = ctx.Object.CommentAuthor()
-			paramName = "comment author"
-		case event.ObjectNeedLabels:
-			_, ok = ctx.Object.Labels()
-			paramName = "labels"
-		default:
-			log.Error("error ObjectNeedParams setting")
+	handled := false
+	meetPreconditions := false
+	for _, handlerOptions := range p.handlers {
+		if !p.IsSupported(ctx, handlerOptions) {
 			continue
 		}
+		handled = true
 
-		if !ok {
-			err = fmt.Errorf("can't get %s from payload", paramName)
+		for _, param := range handlerOptions.ObjectNeedParams {
+			var ok bool
+			paramName := ""
+			switch param {
+			case event.ObjectNeedBody:
+				_, ok = ctx.Object.Body()
+				paramName = "body"
+			case event.ObjectNeedNumber:
+				_, ok = ctx.Object.Number()
+				paramName = "number"
+			case event.ObjectNeedAction:
+				_, ok = ctx.Object.Action()
+				paramName = "action"
+			case event.ObjectNeedAuthor:
+				_, ok = ctx.Object.Author()
+				paramName = "author"
+			case event.ObjectNeedCommentAuthor:
+				_, ok = ctx.Object.CommentAuthor()
+				paramName = "comment author"
+			case event.ObjectNeedSenderUser:
+				_, ok = ctx.Object.SenderUser()
+				paramName = "sender user"
+			case event.ObjectNeedLabels:
+				_, ok = ctx.Object.Labels()
+				paramName = "labels"
+			case event.ObjectNeedReviewState:
+				_, ok = ctx.Object.ReviewState()
+				paramName = "review state"
+			default:
+				log.Error("error ObjectNeedParams setting")
+				continue
+			}
+
+			if !ok {
+				err = fmt.Errorf("can't get %s from payload", paramName)
+				return
+			}
+		}
+
+		// only check plugin preconditions once
+		if !meetPreconditions {
+			err = p.CheckPluginPreconditions(ctx)
+			if err != nil {
+				return
+			}
+			meetPreconditions = true
+		}
+
+		err = handlerOptions.Handler(ctx)
+		if err != nil {
 			return
 		}
 	}
 
-	err = p.CheckPluginPreconditions(ctx)
-	if err != nil {
-		return
+	if !handled {
+		log.Debug("plugin [%s] handlers not support", p.name)
+		return true, nil
 	}
-	return p.handler(ctx)
+	return false, nil
 }

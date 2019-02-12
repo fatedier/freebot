@@ -32,7 +32,7 @@ type Config struct {
 
 type RepoConf struct {
 	Alias   config.AliasOptions     `json:"alias"`
-	Roles   config.RoleOptions      `json:"roles"`
+	Roles   config.RoleOptions      `json:"roles"` // role -> []string{user1, user2}
 	Plugins map[string]PluginConfig `json:"plugins"`
 }
 
