@@ -9,12 +9,28 @@ import (
 const (
 	EvIssueComment             = "issue_comment"
 	EvPullRequest              = "pull_request"
+	EvPullRequestReview        = "pull_request_review"
 	EvPullRequestReviewComment = "pull_request_review_comment"
+	EvPing                     = "ping"
 )
 
 const (
-	ActionCreated = "created"
-	ActionDeleted = "deleted"
+	ActionCreated              = "created"
+	ActionOpened               = "opened"
+	ActionSubmitted            = "submitted"
+	ActionDeleted              = "deleted"
+	ActionClosed               = "closed"
+	ActionSynchronize          = "synchronize"
+	ActionLabeled              = "labeled"
+	ActionUnlabeled            = "unlabeled"
+	ActionReviewRequested      = "review_requested"
+	ActionReviewRequestRemoved = "review_request_removed"
+)
+
+const (
+	ReviewStateCommented        = "commented"
+	ReviewStateApproved         = "approved"
+	ReviewStateChangesRequested = "changes_requested"
 )
 
 const (
@@ -23,7 +39,9 @@ const (
 	ObjectNeedAction
 	ObjectNeedAuthor
 	ObjectNeedCommentAuthor
+	ObjectNeedSenderUser
 	ObjectNeedLabels
+	ObjectNeedReviewState
 )
 
 type EventContext struct {

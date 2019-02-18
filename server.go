@@ -2,9 +2,14 @@ package freebot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"time"
 
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/config"
@@ -12,6 +17,7 @@ import (
 	"github.com/fatedier/freebot/pkg/log"
 	"github.com/fatedier/freebot/plugin"
 	_ "github.com/fatedier/freebot/plugin/assign"
+	_ "github.com/fatedier/freebot/plugin/lifecycle"
 	_ "github.com/fatedier/freebot/plugin/merge"
 	_ "github.com/fatedier/freebot/plugin/status"
 
@@ -26,18 +32,21 @@ type Config struct {
 	LogMaxDays        int64  `json:"log_max_days"`
 	GithubAccessToken string `json:"github_access_token"`
 
-	// owner -> repo -> plugin
-	RepoConfs map[string]map[string]RepoConf `json:"repo_confs"`
+	// repo -> plugin
+	RepoConfs map[string]RepoConf `json:"repo_confs"`
+
+	RepoConfDir                string `json:"repo_conf_dir"`
+	RepoConfDirUpdateIntervalS int    `json:"repo_conf_dir_update_interval_s"`
 }
 
 type RepoConf struct {
 	Alias   config.AliasOptions     `json:"alias"`
-	Roles   config.RoleOptions      `json:"roles"`
+	Roles   config.RoleOptions      `json:"roles"` // role -> []string{user1, user2}
 	Plugins map[string]PluginConfig `json:"plugins"`
 }
 
 type PluginConfig struct {
-	Enable        bool                  `json:"enable"`
+	Disable       bool                  `json:"disable"`
 	Preconditions []config.Precondition `json:"preconditions"`
 	Extra         interface{}           `json:"extra"`
 }
@@ -46,6 +55,10 @@ type Service struct {
 	Config
 
 	eventHandler *EventHandler
+	cli          client.ClientInterface
+
+	staticRepoConfs map[string]RepoConf
+	extraRepoConfs  map[string]RepoConf
 }
 
 func NewService(cfg Config) (*Service, error) {
@@ -57,6 +70,9 @@ func NewService(cfg Config) (*Service, error) {
 	} else {
 		log.InitLog("file", cfg.LogFile, cfg.LogLevel, cfg.LogMaxDays)
 	}
+	if cfg.RepoConfDirUpdateIntervalS <= 0 {
+		cfg.RepoConfDirUpdateIntervalS = 5
+	}
 
 	svc := &Service{
 		Config: cfg,
@@ -67,37 +83,22 @@ func NewService(cfg Config) (*Service, error) {
 	)
 	tc := oauth2.NewClient(context.Background(), ts)
 	githubCli := github.NewClient(tc)
-	cli := client.NewGithubClient(githubCli)
+	svc.cli = client.NewGithubClient(githubCli)
 
-	plugins := make(map[string][]plugin.Plugin)
-	for owner, repos := range cfg.RepoConfs {
-		for repo, repoConf := range repos {
-			log.Info("repo [%s/%s] alias: %+v", owner, repo, repoConf.Alias)
-			log.Info("repo [%s/%s] roles: %+v", owner, repo, repoConf.Roles)
-			for pluginName, pluginConf := range repoConf.Plugins {
-				if !pluginConf.Enable {
-					continue
-				}
-
-				baseOptions := plugin.PluginOptions{}
-				baseOptions.Complete(owner, repo, repoConf.Alias, repoConf.Roles, pluginConf.Preconditions, pluginConf.Extra)
-				p, err := plugin.Create(cli, pluginName, baseOptions)
-				if err != nil {
-					err = fmt.Errorf("create plugin [%s] error: %v", pluginName, err)
-					log.Error("%v", err)
-					return nil, err
-				}
-
-				arrs, ok := plugins[owner+"/"+repo]
-				if ok {
-					arrs = append(arrs, p)
-				} else {
-					arrs = make([]plugin.Plugin, 1)
-					arrs[0] = p
-				}
-				plugins[owner+"/"+repo] = arrs
-			}
+	svc.staticRepoConfs = cfg.RepoConfs
+	if svc.RepoConfDir != "" {
+		extraRepoConfs, err := svc.loadRepoConfsFromDir(svc.RepoConfDir)
+		if err != nil {
+			return nil, fmt.Errorf("load repo confs from dir error: %v", err)
 		}
+
+		svc.extraRepoConfs = extraRepoConfs
+	}
+	repoConfs := svc.mergeRepoConfsTo(nil, svc.staticRepoConfs)
+	repoConfs = svc.mergeRepoConfsTo(repoConfs, svc.extraRepoConfs)
+	plugins, err := svc.createPlugins(repoConfs)
+	if err != nil {
+		return nil, fmt.Errorf("create plugins error: %v", err)
 	}
 
 	svc.eventHandler = NewEventHandler(plugins)
@@ -105,6 +106,8 @@ func NewService(cfg Config) (*Service, error) {
 }
 
 func (svc *Service) Run() error {
+	go svc.updatePluginsWorker()
+
 	log.Info("freebot listen on %s", svc.BindAddr)
 	err := http.ListenAndServe(svc.BindAddr, http.HandlerFunc(svc.Handler))
 	return err
@@ -134,4 +137,106 @@ func (svc *Service) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(200)
+}
+
+func (svc *Service) loadRepoConfsFromDir(path string) (map[string]RepoConf, error) {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]RepoConf)
+	for _, file := range files {
+		if !file.IsDir() {
+			fpath := filepath.Join(path, file.Name())
+			buf, err := ioutil.ReadFile(fpath)
+			if err != nil {
+				return nil, err
+			}
+
+			tmp := make(map[string]RepoConf)
+			err = json.Unmarshal(buf, &tmp)
+			if err != nil {
+				return nil, fmt.Errorf("parse file [%s] error: %v", fpath, err)
+			}
+			out = svc.mergeRepoConfsTo(out, tmp)
+		}
+	}
+	return out, nil
+}
+
+func (svc *Service) mergeRepoConfsTo(dst map[string]RepoConf, src map[string]RepoConf) map[string]RepoConf {
+	if dst == nil {
+		dst = make(map[string]RepoConf)
+	}
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+func (svc *Service) createPlugins(repoConfs map[string]RepoConf) (plugins map[string][]plugin.Plugin, err error) {
+	plugins = make(map[string][]plugin.Plugin)
+	for repoName, repoConf := range repoConfs {
+		log.Info("repo [%s] alias: %+v", repoName, repoConf.Alias)
+		log.Info("repo [%s] roles: %+v", repoName, repoConf.Roles)
+
+		for pluginName, pluginConf := range repoConf.Plugins {
+			if pluginConf.Disable {
+				continue
+			}
+
+			arrs := strings.Split(repoName, "/")
+			if len(arrs) < 2 {
+				return nil, fmt.Errorf("repo name invalid")
+			}
+			baseOptions := plugin.PluginOptions{}
+			baseOptions.Complete(arrs[0], arrs[1], repoConf.Alias, repoConf.Roles, pluginConf.Preconditions, pluginConf.Extra)
+			p, err := plugin.Create(svc.cli, pluginName, baseOptions)
+			if err != nil {
+				err = fmt.Errorf("create plugin [%s] error: %v", pluginName, err)
+				log.Error("%v", err)
+				return nil, err
+			}
+
+			ps, ok := plugins[repoName]
+			if ok {
+				ps = append(ps, p)
+			} else {
+				ps = make([]plugin.Plugin, 1)
+				ps[0] = p
+			}
+			plugins[repoName] = ps
+		}
+	}
+	return plugins, nil
+}
+
+func (svc *Service) updatePluginsWorker() {
+	for {
+		time.Sleep(time.Duration(svc.RepoConfDirUpdateIntervalS) * time.Second)
+		if svc.RepoConfDir != "" {
+			repoConfs, err := svc.loadRepoConfsFromDir(svc.RepoConfDir)
+			if err != nil {
+				log.Error("load repo confs from dir error: %v", err)
+				continue
+			}
+
+			if !reflect.DeepEqual(svc.extraRepoConfs, repoConfs) {
+				log.Info("repo confs changed...")
+				all := svc.mergeRepoConfsTo(nil, repoConfs)
+				svc.mergeRepoConfsTo(all, svc.staticRepoConfs)
+				plugins, err := svc.createPlugins(all)
+				if err != nil {
+					log.Error("create plugins error: %v", err)
+					continue
+				}
+
+				svc.eventHandler.UpdatePlugins(plugins)
+				log.Info("update plugins success")
+
+				svc.extraRepoConfs = repoConfs
+			}
+		}
+	}
 }

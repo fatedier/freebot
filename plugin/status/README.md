@@ -17,22 +17,36 @@
 ```
 {
     "extra": {
+        "init": {
+            "status": "wip",
+            "preconditions": []
+        },
+        "approved": {
+            "status": "approved",
+            "preconditions": [{
+                "required_roles": ["owner"]
+            }]
+        },
+        "synchronize": {
+            "status": "wip",
+            "preconditions": []
+        },
         "label_precondition": {
             "wip": [],
             "wait-review": [],
             "request-changes": [],
             "approved": [{
-                "is_owner": true
+                "required_roles": ["owner"]
             }],
             "testing": [{
                 "required_labels": ["status/approved"]
             }],
             "merge-ready": [
                 {
-                    "is_owner": true
+                    "required_roles": ["owner"]
                 },
                 {
-                    "is_qa": true,
+                    "required_roles": ["qa"],
                     "required_labels": ["status/testing"]
                 }
             ]
@@ -49,10 +63,14 @@ testing 状态需要处于 approved 状态才能修改。
 
 merge-ready 状态有两种情况都可以，一种是 owner 可以直接修改，另外一种是 QA 可以修改且需要处于 testing 状态。
 
-### Support Events
+#### init
 
-issue_comment, pull_request, pull_request_review_comment
+PR 被创建时，如果满足 preconditions 的条件，则会自动加上的状态标签。
 
-### Support Actions
+#### approved
 
-created
+PR 被 approved 之后，如果满足 preconditions 的条件，则会自动加上的状态标签。
+
+#### synchronize
+
+PR 在被创建后有新的 commit 时，如果满足 preconditions 的条件，则会自动加上的状态标签。

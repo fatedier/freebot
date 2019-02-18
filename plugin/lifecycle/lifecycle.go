@@ -1,41 +1,39 @@
-package merge
+package lifecycle
 
 import (
-	"fmt"
-
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/plugin"
 )
 
 var (
-	PluginName = "merge"
-	CmdMerge   = "merge"
+	PluginName = "lifecycle"
+	CmdClose   = "close"
+	CmdReopen  = "reopen"
 )
 
 func init() {
-	plugin.Register(PluginName, NewMergePlugin)
+	plugin.Register(PluginName, NewLifecyclePlugin)
 }
 
 type Extra struct {
 }
 
-type MergePlugin struct {
+type LifecyclePlugin struct {
 	*plugin.BasePlugin
 
 	cli client.ClientInterface
 }
 
-func NewMergePlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
-	p := &MergePlugin{
+func NewLifecyclePlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
+	p := &LifecyclePlugin{
 		cli: cli,
 	}
-
 	handlerOptions := []plugin.HandlerOptions{
 		plugin.HandlerOptions{
 			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
 			Actions:          []string{event.ActionCreated},
-			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber, event.ObjectNeedLabels},
+			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
 			Handler:          p.hanldeCommentEvent,
 		},
 	}
@@ -45,32 +43,32 @@ func NewMergePlugin(cli client.ClientInterface, options plugin.PluginOptions) (p
 	return p, nil
 }
 
-func (p *MergePlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
+func (p *LifecyclePlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 
 	cmds := p.ParseCmdsFromMsg(msg, false)
+
 	for _, cmd := range cmds {
 		cmd.Name = p.ParseCmdAlias(cmd.Name)
-
-		if cmd.Name == CmdMerge {
-			var mergeable bool
-			mergeable, err = p.cli.CheckMergeable(ctx.Ctx, ctx.Owner, ctx.Repo, number)
-			if err != nil {
-				return
-			}
-
-			if !mergeable {
-				err = fmt.Errorf("[%s] pull request not mergeable", PluginName)
-				return
-			}
-
-			err = p.cli.DoOperation(ctx.Ctx, &client.MergeOperation{
+		switch cmd.Name {
+		case CmdClose:
+			err = p.cli.DoOperation(ctx.Ctx, &client.CloseOperation{
 				Owner:  ctx.Owner,
 				Repo:   ctx.Repo,
 				Number: number,
+				Object: ctx.Object,
 			})
 			return
+		case CmdReopen:
+			err = p.cli.DoOperation(ctx.Ctx, &client.ReopenOperation{
+				Owner:  ctx.Owner,
+				Repo:   ctx.Repo,
+				Number: number,
+				Object: ctx.Object,
+			})
+			return
+		default:
 		}
 	}
 	return

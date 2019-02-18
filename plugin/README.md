@@ -7,6 +7,7 @@
 * [Assign](/plugin/assign)
 * [Status](/plugin/status)
 * [Merge](/plugin/merge)
+* [LifeCycle](/plugin/lifecycel)
 
 ### 配置说明
 
@@ -39,16 +40,14 @@
 ```json
 {
     "is_author": false,
-    "is_owner": false,
-    "is_qa": false,
+    "required_roles": [],
     "required_labels": [],
     "required_label_prefix": []
 }
 ```
 
 * is_author: comment 的 user 是 author 自己。
-* is_owner: comment 的 user 的身份是 owner。
-* is_qa: comment 的 user 的身份是 QA。
+* required_roles: 要求 issue 或 PR 或 comment 的 author 需要是某些指定的角色。
 * required_labels: 要求 issue 或 PR 含有指定的 label。
 * required_label_prefix: 要求 issue 或 PR 含有指定前缀的 label。
 

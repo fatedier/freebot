@@ -18,6 +18,9 @@ type Object struct {
 	hasCommentAuthor bool
 	commentAuthor    string
 
+	hasSenderUser bool
+	senderUser    string
+
 	hasNumber bool
 	number    int
 
@@ -26,6 +29,9 @@ type Object struct {
 
 	hasLabels bool
 	labels    []string
+
+	hasReviewState bool
+	reviewState    string
 }
 
 func NewObject(payload interface{}) *Object {
@@ -46,6 +52,10 @@ func NewObject(payload interface{}) *Object {
 		obj.hasCommentAuthor = true
 	}
 
+	if obj.senderUser, err = obj.GetSenderUser(); err == nil {
+		obj.hasSenderUser = true
+	}
+
 	if obj.number, err = obj.GetNumber(); err == nil {
 		obj.hasNumber = true
 	}
@@ -56,6 +66,10 @@ func NewObject(payload interface{}) *Object {
 
 	if obj.labels, err = obj.GetLables(); err == nil {
 		obj.hasLabels = true
+	}
+
+	if obj.reviewState, err = obj.GetReviewState(); err == nil {
+		obj.hasReviewState = true
 	}
 	return obj
 }
@@ -72,6 +86,10 @@ func (obj *Object) CommentAuthor() (author string, ok bool) {
 	return obj.commentAuthor, obj.hasCommentAuthor
 }
 
+func (obj *Object) SenderUser() (user string, ok bool) {
+	return obj.senderUser, obj.hasSenderUser
+}
+
 func (obj *Object) Body() (body string, ok bool) {
 	return obj.body, obj.hasBody
 }
@@ -86,6 +104,10 @@ func (obj *Object) Action() (action string, ok bool) {
 
 func (obj *Object) Labels() (labels []string, ok bool) {
 	return obj.labels, obj.hasLabels
+}
+
+func (obj *Object) ReviewState() (state string, ok bool) {
+	return obj.reviewState, obj.hasReviewState
 }
 
 func (obj *Object) GetAuthor() (author string, err error) {
@@ -109,6 +131,17 @@ func (obj *Object) GetCommentAuthor() (author string, err error) {
 		author = v.GetComment().GetUser().GetLogin()
 	default:
 		err = fmt.Errorf("can't get comment author from payload")
+		return
+	}
+	return
+}
+
+func (obj *Object) GetSenderUser() (user string, err error) {
+	switch v := obj.payload.(type) {
+	case GetSenderInterface:
+		user = v.GetSender().GetLogin()
+	default:
+		err = fmt.Errorf("can't get sender from payload")
 		return
 	}
 	return
@@ -174,7 +207,17 @@ func (obj *Object) GetLables() (labels []string, err error) {
 		labels = append(labels, v.GetName())
 	}
 	return
+}
 
+func (obj *Object) GetReviewState() (state string, err error) {
+	switch v := obj.payload.(type) {
+	case GetReviewInterface:
+		state = v.GetReview().GetState()
+	default:
+		err = fmt.Errorf("can't get review from payload")
+		return
+	}
+	return
 }
 
 type GetActionInterface interface {
@@ -199,4 +242,12 @@ type GetNumberInterface interface {
 
 type GetRepoInterface interface {
 	GetRepo() *github.Repository
+}
+
+type GetSenderInterface interface {
+	GetSender() *github.User
+}
+
+type GetReviewInterface interface {
+	GetReview() *github.PullRequestReview
 }

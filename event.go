@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/event"
@@ -24,12 +25,20 @@ var (
 type EventHandler struct {
 	// key is owner/repo
 	plugins map[string][]plugin.Plugin
+
+	mu sync.RWMutex
 }
 
 func NewEventHandler(plugins map[string][]plugin.Plugin) *EventHandler {
 	return &EventHandler{
 		plugins: plugins,
 	}
+}
+
+func (eh *EventHandler) UpdatePlugins(plugins map[string][]plugin.Plugin) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
+	eh.plugins = plugins
 }
 
 func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content string) (err error) {
@@ -49,10 +58,16 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 		v := &github.PullRequestEvent{}
 		err = json.Unmarshal([]byte(content), &v)
 		payload = v
+	case event.EvPullRequestReview:
+		v := &github.PullRequestReviewEvent{}
+		err = json.Unmarshal([]byte(content), &v)
+		payload = v
 	case event.EvPullRequestReviewComment:
 		v := &github.PullRequestReviewCommentEvent{}
 		err = json.Unmarshal([]byte(content), &v)
 		payload = v
+	case event.EvPing:
+		return nil
 	default:
 		return ErrNoSupportEvent
 	}
@@ -70,7 +85,9 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 	}
 
 	// get plugins
+	eh.mu.RLock()
 	plugins, ok := eh.plugins[owner+"/"+repo]
+	eh.mu.RUnlock()
 	if !ok {
 		return ErrNoPlugins
 	}

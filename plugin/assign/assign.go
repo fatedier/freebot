@@ -11,14 +11,11 @@ import (
 )
 
 var (
-	PluginName       = "assign"
-	SupportEvents    = []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment}
-	SupportActions   = []string{event.ActionCreated}
-	ObjectNeedParams = []int{event.ObjectNeedBody, event.ObjectNeedNumber}
-	CmdCC            = "cc"
-	CmdUnCC          = "uncc"
-	CmdAssign        = "assign"
-	CmdUnAssign      = "unassign"
+	PluginName  = "assign"
+	CmdCC       = "cc"
+	CmdUnCC     = "uncc"
+	CmdAssign   = "assign"
+	CmdUnAssign = "unassign"
 )
 
 func init() {
@@ -38,15 +35,21 @@ func NewAssignPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 	p := &AssignPlugin{
 		cli: cli,
 	}
-	options.SupportEvents = SupportEvents
-	options.SupportActions = SupportActions
-	options.Handler = p.hanldeEvent
+	handlerOptions := []plugin.HandlerOptions{
+		plugin.HandlerOptions{
+			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
+			Actions:          []string{event.ActionCreated},
+			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
+			Handler:          p.hanldeCommentEvent,
+		},
+	}
+	options.Handlers = handlerOptions
 
 	p.BasePlugin = plugin.NewBasePlugin(PluginName, options)
 	return p, nil
 }
 
-func (p *AssignPlugin) hanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
+func (p *AssignPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 

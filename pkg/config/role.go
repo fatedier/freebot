@@ -1,6 +1,3 @@
 package config
 
-type RoleOptions struct {
-	Owner []string `json:"owner"`
-	QA    []string `json:"qa"`
-}
+type RoleOptions map[string][]string // role -> []string{user1, user2}
