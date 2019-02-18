@@ -17,6 +17,7 @@ import (
 	"github.com/fatedier/freebot/pkg/log"
 	"github.com/fatedier/freebot/plugin"
 	_ "github.com/fatedier/freebot/plugin/assign"
+	_ "github.com/fatedier/freebot/plugin/lifecycle"
 	_ "github.com/fatedier/freebot/plugin/merge"
 	_ "github.com/fatedier/freebot/plugin/status"
 

@@ -66,11 +66,3 @@ PR 被创建时，如果满足 preconditions 的条件，则会自动加上的�
 #### approved
 
 PR 被 approved 之后，如果满足 preconditions 的条件，则会自动加上的状态标签。
-
-### Support Events
-
-issue_comment, pull_request, pull_request_review_comment
-
-### Support Actions
-
-created

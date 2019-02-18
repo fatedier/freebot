@@ -11,11 +11,3 @@
 ### extra
 
 无
-
-### Support Events
-
-issue_comment, pull_request, pull_request_review_comment
-
-### Support Actions:
-
-created
