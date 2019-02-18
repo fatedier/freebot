@@ -18,6 +18,7 @@ import (
 	"github.com/fatedier/freebot/pkg/notify"
 	"github.com/fatedier/freebot/plugin"
 	_ "github.com/fatedier/freebot/plugin/assign"
+	_ "github.com/fatedier/freebot/plugin/label"
 	_ "github.com/fatedier/freebot/plugin/lifecycle"
 	_ "github.com/fatedier/freebot/plugin/merge"
 	_ "github.com/fatedier/freebot/plugin/notify"
