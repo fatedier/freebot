@@ -42,6 +42,36 @@ func (cli *githubClient) doReplaceLabelOperation(ctx context.Context, op *Replac
 	return nil
 }
 
+type AddLabelOperation struct {
+	Owner  string
+	Repo   string
+	Number int
+	Labels []string
+}
+
+func (cli *githubClient) doAddLabelOperation(ctx context.Context, op *AddLabelOperation) error {
+	_, _, err := cli.client.Issues.AddLabelsToIssue(ctx, op.Owner, op.Repo, op.Number, op.Labels)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type RemoveLabelOperation struct {
+	Owner  string
+	Repo   string
+	Number int
+	Label  string
+}
+
+func (cli *githubClient) doRemoveLabelOperation(ctx context.Context, op *RemoveLabelOperation) error {
+	_, err := cli.client.Issues.RemoveLabelForIssue(ctx, op.Owner, op.Repo, op.Number, op.Label)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 type AddAssignOperation struct {
 	Owner     string
 	Repo      string
