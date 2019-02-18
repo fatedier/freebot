@@ -27,6 +27,10 @@
                 "required_roles": ["owner"]
             }]
         },
+        "synchronize": {
+            "status": "wip",
+            "preconditions": []
+        },
         "label_precondition": {
             "wip": [],
             "wait-review": [],
@@ -66,3 +70,7 @@ PR 被创建时，如果满足 preconditions 的条件，则会自动加上的�
 #### approved
 
 PR 被 approved 之后，如果满足 preconditions 的条件，则会自动加上的状态标签。
+
+#### synchronize
+
+PR 在被创建后有新的 commit 时，如果满足 preconditions 的条件，则会自动加上的状态标签。

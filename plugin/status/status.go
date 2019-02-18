@@ -25,7 +25,20 @@ func init() {
 	example:
 
 	{
-		"init_status": "wip",
+		"init": {
+            "status": "wip",
+            "preconditions": []
+        },
+        "approved": {
+            "status": "approved",
+            "preconditions": [{
+                "required_roles": ["owner"]
+            }]
+        },
+		"synchronize": {
+			"status": "wip",
+			"precondition": []
+		},
 		"label_precondition": {
 			"wip": [],
 			"wait-review": [],
@@ -56,6 +69,7 @@ type LabelStatus struct {
 type Extra struct {
 	Init               LabelStatus                      `json:"init"`
 	Approved           LabelStatus                      `json:"approved"`
+	Synchronize        LabelStatus                      `json:"synchronize"`
 	LabelPreconditions map[string][]config.Precondition `json:"label_precondition"`
 }
 
@@ -77,6 +91,12 @@ func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 			Actions:          []string{event.ActionOpened},
 			ObjectNeedParams: []int{event.ObjectNeedNumber},
 			Handler:          p.handlePullRequestEvent,
+		},
+		plugin.HandlerOptions{
+			Events:           []string{event.EvPullRequest},
+			Actions:          []string{event.ActionSynchronize},
+			ObjectNeedParams: []int{event.ObjectNeedNumber},
+			Handler:          p.handlePullRequestSynchronizeEvent,
 		},
 		plugin.HandlerOptions{
 			Events:           []string{event.EvPullRequestReview},
@@ -196,6 +216,30 @@ func (p *StatusPlugin) handlePullRequestReviewEvent(ctx *event.EventContext) (er
 			return
 		}
 		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Approved.Status)
+	}
+	return
+}
+
+func (p *StatusPlugin) handlePullRequestSynchronizeEvent(ctx *event.EventContext) (err error) {
+	if p.extra.Synchronize.Status != "" {
+		number, _ := ctx.Object.Number()
+		err = p.CheckPreconditions(ctx, p.extra.Synchronize.Preconditions)
+		if err != nil {
+			log.Warn("synchronize preconditions check failed: %v", err)
+			return
+		}
+
+		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
+			Owner:              ctx.Owner,
+			Repo:               ctx.Repo,
+			ReplaceLabelPrefix: CmdStatus + "/",
+			Number:             number,
+			Labels:             []string{CmdStatus + "/" + p.extra.Synchronize.Status},
+		})
+		if err != nil {
+			return
+		}
+		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Synchronize.Status)
 	}
 	return
 }

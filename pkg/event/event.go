@@ -20,6 +20,7 @@ const (
 	ActionSubmitted            = "submitted"
 	ActionDeleted              = "deleted"
 	ActionClosed               = "closed"
+	ActionSynchronize          = "synchronize"
 	ActionLabeled              = "labeled"
 	ActionUnlabeled            = "unlabeled"
 	ActionReviewRequested      = "review_requested"
