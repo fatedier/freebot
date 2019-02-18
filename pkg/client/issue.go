@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/go-github/github"
@@ -63,4 +64,58 @@ type RemoveAssignOperation struct {
 func (cli *githubClient) doRemoveAssignOperation(ctx context.Context, op *RemoveAssignOperation) error {
 	_, _, err := cli.client.Issues.RemoveAssignees(ctx, op.Owner, op.Repo, op.Number, op.Assignees)
 	return err
+}
+
+type CloseOperation struct {
+	Owner  string
+	Repo   string
+	Number int
+	Object *Object // can get issue or pr info from payload
+}
+
+func (cli *githubClient) doCloseOperation(ctx context.Context, op *CloseOperation) error {
+	closeState := "closed"
+
+	if _, ok := op.Object.Payload().(GetPullRequestInterface); ok {
+		_, _, err := cli.client.PullRequests.Edit(ctx, op.Owner, op.Repo, op.Number, &github.PullRequest{
+			State: &closeState,
+		})
+		return err
+	}
+
+	if _, ok := op.Object.Payload().(GetIssueInterface); ok {
+		_, _, err := cli.client.Issues.Edit(ctx, op.Owner, op.Repo, op.Number, &github.IssueRequest{
+			State: &closeState,
+		})
+		return err
+	}
+
+	return fmt.Errorf("can't get issue or pr from object")
+}
+
+type ReopenOperation struct {
+	Owner  string
+	Repo   string
+	Number int
+	Object *Object // can get issue or pr info from payload
+}
+
+func (cli *githubClient) doReopenOperation(ctx context.Context, op *ReopenOperation) error {
+	openStatue := "open"
+
+	if _, ok := op.Object.Payload().(GetPullRequestInterface); ok {
+		_, _, err := cli.client.PullRequests.Edit(ctx, op.Owner, op.Repo, op.Number, &github.PullRequest{
+			State: &openStatue,
+		})
+		return err
+	}
+
+	if _, ok := op.Object.Payload().(GetIssueInterface); ok {
+		_, _, err := cli.client.Issues.Edit(ctx, op.Owner, op.Repo, op.Number, &github.IssueRequest{
+			State: &openStatue,
+		})
+		return err
+	}
+
+	return fmt.Errorf("can't get issue or pr from object")
 }
