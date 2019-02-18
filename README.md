@@ -36,6 +36,33 @@ freebot 是一个帮助团队基于 github 的 issue 和 pull request 进行工�
 6. QA 收到通知，开始测试，如果测试不通过，回到 `request-changes`，测试通过，则 `/status merge-ready`。
 7. 开发通过 `/merge` 将代码合并，进行后续的上线操作。
 
+### 配置
+
+由于 freebot 同时支持配置多个 repo，且每一个 repo 的 plugin 都可以有自定义的配置，为了避免单个配置文件过长，难以维护，支持将每一个 repo 的配置分散在一个指定目录中。
+
+freebot 会用定期轮询的方式读取指定目录的配置，如果检测到配置有变化，会动态更新。
+
+在配置文件中配置 `repo_conf_dir` 来启用此功能，通过 `repo_conf_dir_update_interval_s` 指定轮询检测的间隔时间。
+
+`repo_conf_dir` 目录下的所有文件都会被解析为对应的 repo 的配置。
+
+格式如下:
+
+```json
+{
+    "fatedier/freebot": {
+        "alias": {},
+        "roles": {},
+        "plugins": {
+            "assign": {
+                "enable"
+            },
+            ...
+        }
+    }
+}
+```
+
 ### 功能
 
 #### 插件
