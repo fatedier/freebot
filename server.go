@@ -46,7 +46,7 @@ type RepoConf struct {
 }
 
 type PluginConfig struct {
-	Enable        bool                  `json:"enable"`
+	Disable       bool                  `json:"disable"`
 	Preconditions []config.Precondition `json:"preconditions"`
 	Extra         interface{}           `json:"extra"`
 }
@@ -182,7 +182,7 @@ func (svc *Service) createPlugins(repoConfs map[string]RepoConf) (plugins map[st
 		log.Info("repo [%s] roles: %+v", repoName, repoConf.Roles)
 
 		for pluginName, pluginConf := range repoConf.Plugins {
-			if !pluginConf.Enable {
+			if pluginConf.Disable {
 				continue
 			}
 
