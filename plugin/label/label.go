@@ -7,6 +7,7 @@ import (
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/log"
+	"github.com/fatedier/freebot/pkg/notify"
 	"github.com/fatedier/freebot/plugin"
 )
 
@@ -50,12 +51,14 @@ type LablePlugin struct {
 	*plugin.BasePlugin
 	extra Extra
 
-	cli client.ClientInterface
+	cli      client.ClientInterface
+	notifier notify.NotifyInterface
 }
 
-func NewLabelPlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
+func NewLabelPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
 	p := &LablePlugin{
-		cli: cli,
+		cli:      cli,
+		notifier: notifier,
 	}
 
 	handlerOptions := []plugin.HandlerOptions{
