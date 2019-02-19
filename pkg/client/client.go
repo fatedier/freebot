@@ -42,6 +42,10 @@ func (cli *githubClient) DoOperation(ctx context.Context, op interface{}) (err e
 		err = cli.doCloseOperation(ctx, v)
 	case *ReopenOperation:
 		err = cli.doReopenOperation(ctx, v)
+	case *AddLabelOperation:
+		err = cli.doAddLabelOperation(ctx, v)
+	case *RemoveLabelOperation:
+		err = cli.doRemoveLabelOperation(ctx, v)
 	default:
 		err = fmt.Errorf("no support operation")
 	}
