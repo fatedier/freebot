@@ -32,6 +32,18 @@ type Object struct {
 
 	hasReviewState bool
 	reviewState    string
+
+	hasCheckSuiteStatus bool
+	checkSuiteStatus    string
+
+	hasCheckSuiteConclusion bool
+	checkSuiteConclusion    string
+
+	hasCheckRunStatus bool
+	checkRunStatus    string
+
+	hasCheckRunConclusion bool
+	checkRunConclusion    string
 }
 
 func NewObject(payload interface{}) *Object {
@@ -71,6 +83,22 @@ func NewObject(payload interface{}) *Object {
 	if obj.reviewState, err = obj.GetReviewState(); err == nil {
 		obj.hasReviewState = true
 	}
+
+	if obj.checkRunStatus, err = obj.GetCheckRunStatus(); err == nil {
+		obj.hasCheckRunStatus = true
+	}
+
+	if obj.checkRunConclusion, err = obj.GetCheckRunConclusion(); err == nil {
+		obj.hasCheckRunConclusion = true
+	}
+
+	if obj.checkSuiteStatus, err = obj.GetCheckSuiteStatus(); err == nil {
+		obj.hasCheckSuiteStatus = true
+	}
+
+	if obj.checkSuiteConclusion, err = obj.GetCheckSuiteConclusion(); err == nil {
+		obj.hasCheckSuiteConclusion = true
+	}
 	return obj
 }
 
@@ -108,6 +136,22 @@ func (obj *Object) Labels() (labels []string, ok bool) {
 
 func (obj *Object) ReviewState() (state string, ok bool) {
 	return obj.reviewState, obj.hasReviewState
+}
+
+func (obj *Object) CheckRunStatus() (status string, ok bool) {
+	return obj.checkRunStatus, obj.hasCheckRunStatus
+}
+
+func (obj *Object) CheckRunConclusion() (conclusion string, ok bool) {
+	return obj.checkRunConclusion, obj.hasCheckRunConclusion
+}
+
+func (obj *Object) CheckSuiteStatus() (status string, ok bool) {
+	return obj.checkSuiteStatus, obj.hasCheckSuiteStatus
+}
+
+func (obj *Object) CheckSuiteConclusion() (conclusion string, ok bool) {
+	return obj.checkSuiteConclusion, obj.hasCheckSuiteConclusion
 }
 
 func (obj *Object) GetAuthor() (author string, err error) {
@@ -220,6 +264,50 @@ func (obj *Object) GetReviewState() (state string, err error) {
 	return
 }
 
+func (obj *Object) GetCheckRunStatus() (status string, err error) {
+	switch v := obj.payload.(type) {
+	case GetCheckRunInterface:
+		status = v.GetCheckRun().GetStatus()
+	default:
+		err = fmt.Errorf("can't get check run from payload")
+		return
+	}
+	return
+}
+
+func (obj *Object) GetCheckRunConclusion() (conclusion string, err error) {
+	switch v := obj.payload.(type) {
+	case GetCheckRunInterface:
+		conclusion = v.GetCheckRun().GetConclusion()
+	default:
+		err = fmt.Errorf("can't get check run from payload")
+		return
+	}
+	return
+}
+
+func (obj *Object) GetCheckSuiteStatus() (status string, err error) {
+	switch v := obj.payload.(type) {
+	case GetCheckSuiteInterface:
+		status = v.GetCheckSuite().GetStatus()
+	default:
+		err = fmt.Errorf("can't get check suite from payload")
+		return
+	}
+	return
+}
+
+func (obj *Object) GetCheckSuiteConclusion() (conclusion string, err error) {
+	switch v := obj.payload.(type) {
+	case GetCheckSuiteInterface:
+		conclusion = v.GetCheckSuite().GetConclusion()
+	default:
+		err = fmt.Errorf("can't get check suite from payload")
+		return
+	}
+	return
+}
+
 type GetActionInterface interface {
 	GetAction() string
 }
@@ -250,4 +338,12 @@ type GetSenderInterface interface {
 
 type GetReviewInterface interface {
 	GetReview() *github.PullRequestReview
+}
+
+type GetCheckRunInterface interface {
+	GetCheckRun() *github.CheckRun
+}
+
+type GetCheckSuiteInterface interface {
+	GetCheckSuite() *github.CheckSuite
 }

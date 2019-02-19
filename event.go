@@ -66,6 +66,14 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 		v := &github.PullRequestReviewCommentEvent{}
 		err = json.Unmarshal([]byte(content), &v)
 		payload = v
+	case event.EvCheckRun:
+		v := &github.CheckRunEvent{}
+		err = json.Unmarshal([]byte(content), &v)
+		payload = v
+	case event.EvCheckSuite:
+		v := &github.CheckSuiteEvent{}
+		err = json.Unmarshal([]byte(content), &v)
+		payload = v
 	case event.EvPing:
 		return nil
 	default:
