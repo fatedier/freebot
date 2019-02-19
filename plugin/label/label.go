@@ -85,27 +85,42 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 
 	cmds := p.ParseCmdsFromMsg(msg, false)
 	for _, cmd := range cmds {
+		cmd.Name = p.ParseCmdAlias(cmd.Name)
+		var arg string
+		if len(cmd.Args) > 0 {
+			arg = p.ParseLabelAlias(cmd.Args[0])
+		} else {
+			continue
+		}
+
 		if cv, ok := p.extra[cmd.Name]; ok {
-			if len(cmd.Args) > 0 && stringContains(cv.Labels, cmd.Args[0]) {
+			if stringContains(cv.Labels, arg) {
+				// one preconditions should be satisfied
+				err = p.CheckPreconditions(ctx, p.extra[cmd.Name].AddPreconditions)
+				if err != nil {
+					log.Warn("all preconditions check failed: %v", err)
+					return
+				}
+
 				err = p.cli.DoOperation(ctx.Ctx, &client.AddLabelOperation{
 					Owner:  ctx.Owner,
 					Repo:   ctx.Repo,
 					Number: number,
-					Labels: []string{cmd.Name + "/" + cmd.Args[0]},
+					Labels: []string{cmd.Name + "/" + arg},
 				})
 				if err != nil {
 					return
 				}
-				log.Debug("[%d] add label %s", number, cmd.Name+"/"+cmd.Args[0])
+				log.Debug("[%d] add label %s", number, cmd.Name+"/"+arg)
 			}
 		}
 
 		if strings.HasPrefix(cmd.Name, PluginRemoveCmdPrefix) {
 			trimName := strings.TrimPrefix(cmd.Name, PluginRemoveCmdPrefix)
 			if cv, ok := p.extra[trimName]; ok {
-				if len(cmd.Args) > 0 && stringContains(cv.Labels, cmd.Args[0]) {
+				if stringContains(cv.Labels, arg) {
 					// one preconditions should be satisfied
-					err = p.checkRemoveConditions(ctx, p.extra[trimName].RemovePreconditions)
+					err = p.CheckPreconditions(ctx, p.extra[trimName].RemovePreconditions)
 					if err != nil {
 						log.Warn("all preconditions check failed: %v", err)
 						return
@@ -115,30 +130,17 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 						Owner:  ctx.Owner,
 						Repo:   ctx.Repo,
 						Number: number,
-						Label:  trimName + "/" + cmd.Args[0],
+						Label:  trimName + "/" + arg,
 					})
 					if err != nil {
 						return
 					}
-					log.Debug("[%d] remove label :%v", number, trimName+"/"+cmd.Args[0])
+					log.Debug("[%d] remove label :%v", number, trimName+"/"+arg)
 				}
 			}
 		}
 	}
 	return
-}
-
-func (p *LablePlugin) checkAddCondition(ctx *event.EventContext, preconditions []config.Precondition) error {
-	return nil
-}
-
-func (p *LablePlugin) checkRemoveConditions(ctx *event.EventContext, preconditions []config.Precondition) error {
-	// one preconditions should be satisfied
-	err := p.CheckPreconditions(ctx, preconditions)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func stringContains(strs []string, s string) bool {
