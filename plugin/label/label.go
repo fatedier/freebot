@@ -11,7 +11,19 @@ import (
 )
 
 /*
-	extra params:
+	"extra":{
+		"kind":{
+			"add_preconditions":[
+			],
+			"remove_preconditions":[
+				{
+					"required_roles": ["owner"]
+				}
+			],
+			"labels": ["feature", "bug"]
+		 }
+	}
+}
 */
 
 const (
@@ -27,8 +39,9 @@ func init() {
 }
 
 type LabelStatus struct {
-	Preconditions []config.Precondition
-	Labels        []string
+	AddPreconditions    []config.Precondition `json:"add_preconditions"`
+	RemovePreconditions []config.Precondition `json:"remove_preconditions"`
+	Labels              []string              `json:"labels"`
 }
 
 type Extra map[string]LabelStatus
@@ -83,7 +96,7 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 				if err != nil {
 					return
 				}
-				log.Debug("[%d] add label %s", number, cmd, "kind/feature")
+				log.Debug("[%d] add label %s", number, cmd.Name+"/"+cmd.Args[0])
 			}
 		}
 
@@ -91,6 +104,13 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 			trimName := strings.TrimPrefix(cmd.Name, PluginRemoveCmdPrefix)
 			if cv, ok := p.extra[trimName]; ok {
 				if len(cmd.Args) > 0 && stringContains(cv.Labels, cmd.Args[0]) {
+					// one preconditions should be satisfied
+					err = p.checkRemoveConditions(ctx, p.extra[trimName].RemovePreconditions)
+					if err != nil {
+						log.Warn("all preconditions check failed: %v", err)
+						return
+					}
+
 					err = p.cli.DoOperation(ctx.Ctx, &client.RemoveLabelOperation{
 						Owner:  ctx.Owner,
 						Repo:   ctx.Repo,
@@ -106,6 +126,19 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 		}
 	}
 	return
+}
+
+func (p *LablePlugin) checkAddCondition(ctx *event.EventContext, preconditions []config.Precondition) error {
+	return nil
+}
+
+func (p *LablePlugin) checkRemoveConditions(ctx *event.EventContext, preconditions []config.Precondition) error {
+	// one preconditions should be satisfied
+	err := p.CheckPreconditions(ctx, preconditions)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func stringContains(strs []string, s string) bool {
