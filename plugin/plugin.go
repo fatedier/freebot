@@ -9,6 +9,7 @@ import (
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/log"
+	"github.com/fatedier/freebot/pkg/notify"
 )
 
 var creators map[string]CreatorFn
@@ -17,7 +18,7 @@ func init() {
 	creators = make(map[string]CreatorFn)
 }
 
-type CreatorFn func(cli client.ClientInterface, options PluginOptions) (Plugin, error)
+type CreatorFn func(cli client.ClientInterface, notifier notify.NotifyInterface, options PluginOptions) (Plugin, error)
 
 type Handler func(ctx *event.EventContext) (err error)
 
@@ -25,9 +26,9 @@ func Register(name string, fn CreatorFn) {
 	creators[name] = fn
 }
 
-func Create(cli client.ClientInterface, name string, options PluginOptions) (p Plugin, err error) {
+func Create(cli client.ClientInterface, notifier notify.NotifyInterface, name string, options PluginOptions) (p Plugin, err error) {
 	if fn, ok := creators[name]; ok {
-		p, err = fn(cli, options)
+		p, err = fn(cli, notifier, options)
 	} else {
 		err = fmt.Errorf("plugin [%s] is not registered", name)
 	}
@@ -134,7 +135,7 @@ func (p *BasePlugin) UnmarshalTo(v interface{}) error {
 	if err = json.Unmarshal(buf, &v); err != nil {
 		return fmt.Errorf("[%s] extra conf parse failed", p.name)
 	}
-	log.Info("[%s/%s] [%s] extra conf: %v", p.owner, p.repo, p.name, v)
+	log.Info("[%s/%s] [%s]", p.owner, p.repo, p.name)
 	return nil
 }
 
@@ -383,6 +384,18 @@ func (p *BasePlugin) HanldeEvent(ctx *event.EventContext) (notSupport bool, err 
 			case event.ObjectNeedReviewState:
 				_, ok = ctx.Object.ReviewState()
 				paramName = "review state"
+			case event.ObjectNeedCheckRunStatus:
+				_, ok = ctx.Object.CheckRunStatus()
+				paramName = "check run status"
+			case event.ObjectNeedCheckRunConclusion:
+				_, ok = ctx.Object.CheckRunConclusion()
+				paramName = "check run conclusion"
+			case event.ObjectNeedCheckSuiteStatus:
+				_, ok = ctx.Object.CheckSuiteStatus()
+				paramName = "check suite status"
+			case event.ObjectNeedCheckSuiteConclusion:
+				_, ok = ctx.Object.CheckSuiteConclusion()
+				paramName = "check suite conclusion"
 			default:
 				log.Error("error ObjectNeedParams setting")
 				continue

@@ -11,6 +11,8 @@ const (
 	EvPullRequest              = "pull_request"
 	EvPullRequestReview        = "pull_request_review"
 	EvPullRequestReviewComment = "pull_request_review_comment"
+	EvCheckRun                 = "check_run"
+	EvCheckSuite               = "check_suite"
 	EvPing                     = "ping"
 )
 
@@ -23,6 +25,7 @@ const (
 	ActionSynchronize          = "synchronize"
 	ActionLabeled              = "labeled"
 	ActionUnlabeled            = "unlabeled"
+	ActionCompleted            = "completed"
 	ActionReviewRequested      = "review_requested"
 	ActionReviewRequestRemoved = "review_request_removed"
 )
@@ -42,6 +45,10 @@ const (
 	ObjectNeedSenderUser
 	ObjectNeedLabels
 	ObjectNeedReviewState
+	ObjectNeedCheckRunStatus
+	ObjectNeedCheckRunConclusion
+	ObjectNeedCheckSuiteStatus
+	ObjectNeedCheckSuiteConclusion
 )
 
 type EventContext struct {

@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/event"
+	"github.com/fatedier/freebot/pkg/notify"
 	"github.com/fatedier/freebot/plugin"
 )
 
@@ -22,12 +23,14 @@ type Extra struct {
 type LifecyclePlugin struct {
 	*plugin.BasePlugin
 
-	cli client.ClientInterface
+	cli      client.ClientInterface
+	notifier notify.NotifyInterface
 }
 
-func NewLifecyclePlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
+func NewLifecyclePlugin(cli client.ClientInterface, notifier notify.NotifyInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
 	p := &LifecyclePlugin{
-		cli: cli,
+		cli:      cli,
+		notifier: notifier,
 	}
 	handlerOptions := []plugin.HandlerOptions{
 		plugin.HandlerOptions{
