@@ -45,10 +45,7 @@ const (
 	ObjectNeedSenderUser
 	ObjectNeedLabels
 	ObjectNeedReviewState
-	ObjectNeedCheckRunStatus
-	ObjectNeedCheckRunConclusion
-	ObjectNeedCheckSuiteStatus
-	ObjectNeedCheckSuiteConclusion
+	ObjectNeedCheckEvent
 )
 
 type EventContext struct {

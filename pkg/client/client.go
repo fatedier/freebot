@@ -10,6 +10,7 @@ import (
 type ClientInterface interface {
 	DoOperation(ctx context.Context, op interface{}) error
 	CheckMergeable(ctx context.Context, owner, repo string, number int) (bool, error)
+	ListPullRequestBySHA(ctx context.Context, owner, repo, sha string) ([]PullRequest, error)
 }
 
 var _ ClientInterface = &githubClient{}

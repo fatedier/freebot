@@ -19,6 +19,35 @@ func (cli *githubClient) CheckMergeable(ctx context.Context, owner, repo string,
 	return pr.GetMergeable(), nil
 }
 
+func (cli *githubClient) ListPullRequestBySHA(ctx context.Context, owner, repo string, sha string) (prs []PullRequest, err error) {
+	githubPRs, _, err := cli.client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	prs = make([]PullRequest, 0, len(githubPRs))
+	for _, githubPR := range githubPRs {
+		if githubPR.GetHead().GetSHA() != sha {
+			continue
+		}
+
+		pr := PullRequest{
+			Number:  githubPR.GetNumber(),
+			State:   githubPR.GetState(),
+			Title:   githubPR.GetTitle(),
+			Body:    githubPR.GetBody(),
+			User:    githubPR.GetUser().GetLogin(),
+			Labels:  make([]string, 0),
+			HTMLURL: githubPR.GetHTMLURL(),
+		}
+		for _, l := range githubPR.Labels {
+			pr.Labels = append(pr.Labels, l.GetName())
+		}
+		prs = append(prs, pr)
+	}
+	return
+}
+
 // operations
 type RequestReviewsOperation struct {
 	Owner     string
