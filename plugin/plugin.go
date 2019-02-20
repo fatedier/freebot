@@ -44,7 +44,7 @@ type HandlerOptions struct {
 
 type Plugin interface {
 	Name() string
-	HanldeEvent(ctx *event.EventContext) (notSupport bool, err error)
+	HandleEvent(ctx *event.EventContext) (notSupport bool, err error)
 }
 
 type PluginOptions struct {
@@ -347,7 +347,7 @@ func (p *BasePlugin) CheckRequiredLabelPrefix(ctx *event.EventContext, prefix []
 	return nil
 }
 
-func (p *BasePlugin) HanldeEvent(ctx *event.EventContext) (notSupport bool, err error) {
+func (p *BasePlugin) HandleEvent(ctx *event.EventContext) (notSupport bool, err error) {
 	handled := false
 	meetPreconditions := false
 	for _, handlerOptions := range p.handlers {

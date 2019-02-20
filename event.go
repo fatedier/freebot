@@ -107,7 +107,7 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 	)
 	object := client.NewObject(payload)
 	for _, p := range plugins {
-		notSupport, partialErr = p.HanldeEvent(&event.EventContext{
+		notSupport, partialErr = p.HandleEvent(&event.EventContext{
 			Ctx:    ctx,
 			Type:   evType,
 			Owner:  owner,

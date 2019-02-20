@@ -46,7 +46,7 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 			Events:           []string{event.EvCheckSuite},
 			Actions:          []string{event.ActionCompleted},
 			ObjectNeedParams: []int{event.ObjectNeedCheckSuiteStatus, event.ObjectNeedCheckSuiteConclusion},
-			Handler:          p.hanldeCheckSuiteEvent,
+			Handler:          p.handleCheckSuiteEvent,
 		},
 		plugin.HandlerOptions{
 			Events:           []string{event.EvCheckRun},
@@ -66,7 +66,7 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 	return p, nil
 }
 
-func (p *NotifyPlugin) hanldeCheckSuiteEvent(ctx *event.EventContext) (err error) {
+func (p *NotifyPlugin) handleCheckSuiteEvent(ctx *event.EventContext) (err error) {
 	if p.extra.CheckSuiteComplete == nil {
 		return
 	}

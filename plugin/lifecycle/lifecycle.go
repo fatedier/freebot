@@ -37,7 +37,7 @@ func NewLifecyclePlugin(cli client.ClientInterface, notifier notify.NotifyInterf
 			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
 			Actions:          []string{event.ActionCreated},
 			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
-			Handler:          p.hanldeCommentEvent,
+			Handler:          p.handleCommentEvent,
 		},
 	}
 	options.Handlers = handlerOptions
@@ -46,7 +46,7 @@ func NewLifecyclePlugin(cli client.ClientInterface, notifier notify.NotifyInterf
 	return p, nil
 }
 
-func (p *LifecyclePlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
+func (p *LifecyclePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 

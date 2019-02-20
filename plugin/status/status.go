@@ -111,7 +111,7 @@ func NewStatusPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
 			Actions:          []string{event.ActionCreated},
 			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
-			Handler:          p.hanldeCommentEvent,
+			Handler:          p.handleCommentEvent,
 		},
 	}
 	options.Handlers = handlerOptions
@@ -125,7 +125,7 @@ func NewStatusPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 	return p, nil
 }
 
-func (p *StatusPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
+func (p *StatusPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 
