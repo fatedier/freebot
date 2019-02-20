@@ -89,7 +89,7 @@ func (p *NotifyPlugin) handleCheckSuiteEvent(ctx *event.EventContext) (err error
 		}
 
 		content := fmt.Sprintf("check suite complete, status [%s], conclusion [%s]\n", suite.Status, suite.Conclusion)
-		content += fmt.Sprintf("Title [%s] Author [%s] %s", pr.Title, pr.User, pr.HTMLURL)
+		content += fmt.Sprintf("Title [%s] Author [%s]\n%s", pr.Title, pr.User, pr.HTMLURL)
 		log.Debug("check suite [%s] [%s] [%s], send notify", pr.Title, suite.Status, suite.Conclusion)
 		err = p.notifier.Send(ctx.Ctx, &notifyOption, content)
 		return err
@@ -120,7 +120,7 @@ func (p *NotifyPlugin) handleCheckRunEvent(ctx *event.EventContext) (err error) 
 		}
 
 		content := fmt.Sprintf("check run complete, status [%s], conclusion [%s]\n", run.Status, run.Conclusion)
-		content += fmt.Sprintf("Title [%s] Author [%s] %s", pr.Title, pr.User, pr.HTMLURL)
+		content += fmt.Sprintf("Title [%s] Author [%s]\n%s", pr.Title, pr.User, pr.HTMLURL)
 		log.Debug("check run [%s] [%s] [%s], send notify", pr.Title, run.Status, run.Conclusion)
 		err = p.notifier.Send(ctx.Ctx, &notifyOption, content)
 		return err
