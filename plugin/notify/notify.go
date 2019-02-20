@@ -45,13 +45,13 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 		plugin.HandlerOptions{
 			Events:           []string{event.EvCheckSuite},
 			Actions:          []string{event.ActionCompleted},
-			ObjectNeedParams: []int{event.ObjectNeedCheckSuiteStatus, event.ObjectNeedCheckSuiteConclusion},
+			ObjectNeedParams: []int{event.ObjectNeedCheckEvent},
 			Handler:          p.hanldeCheckSuiteEvent,
 		},
 		plugin.HandlerOptions{
 			Events:           []string{event.EvCheckRun},
 			Actions:          []string{event.ActionCompleted},
-			ObjectNeedParams: []int{event.ObjectNeedCheckRunStatus, event.ObjectNeedCheckRunConclusion},
+			ObjectNeedParams: []int{event.ObjectNeedCheckEvent},
 			Handler:          p.handleCheckRunEvent,
 		},
 	}
@@ -71,14 +71,30 @@ func (p *NotifyPlugin) hanldeCheckSuiteEvent(ctx *event.EventContext) (err error
 		return
 	}
 
-	status, _ := ctx.Object.CheckSuiteStatus()
-	conclusion, _ := ctx.Object.CheckSuiteConclusion()
+	checkEvent, _ := ctx.Object.CheckEvent()
+	suite := checkEvent.Suite
 
-	notifyOptions := &p.extra.CheckSuiteComplete.Default
-	content := fmt.Sprintf("one check suite complete, status [%s], conclusion [%s]", status, conclusion)
-	log.Debug("check suite [%s] [%s], send notify", status, conclusion)
-	err = p.notifier.Send(ctx.Ctx, notifyOptions, content)
-	return err
+	log.Debug("check suite: %+v", *suite)
+	prs, err := p.cli.ListPullRequestBySHA(ctx.Ctx, ctx.Owner, ctx.Repo, suite.HeadSHA)
+	if err != nil {
+		return fmt.Errorf("list pull request by sha error: %v", err)
+	}
+
+	log.Debug("pull requests: %v", prs)
+	if len(prs) > 0 {
+		pr := prs[0]
+		notifyOption, ok := p.extra.CheckSuiteComplete.Authors[pr.User]
+		if !ok {
+			notifyOption = p.extra.CheckSuiteComplete.Default
+		}
+
+		content := fmt.Sprintf("check suite complete, status [%s], conclusion [%s]\n", suite.Status, suite.Conclusion)
+		content += fmt.Sprintf("Title [%s] Author [%s] %s", pr.Title, pr.User, pr.HTMLURL)
+		log.Debug("check suite [%s] [%s] [%s], send notify", pr.Title, suite.Status, suite.Conclusion)
+		err = p.notifier.Send(ctx.Ctx, &notifyOption, content)
+		return err
+	}
+	return
 }
 
 func (p *NotifyPlugin) handleCheckRunEvent(ctx *event.EventContext) (err error) {
@@ -86,12 +102,28 @@ func (p *NotifyPlugin) handleCheckRunEvent(ctx *event.EventContext) (err error) 
 		return
 	}
 
-	status, _ := ctx.Object.CheckRunStatus()
-	conclusion, _ := ctx.Object.CheckRunConclusion()
+	checkEvent, _ := ctx.Object.CheckEvent()
+	run := checkEvent.Run
 
-	notifyOptions := &p.extra.CheckRunComplete.Default
-	content := fmt.Sprintf("one check run complete, status [%s], conclusion [%s]", status, conclusion)
-	log.Debug("check run [%s] [%s], send notify", status, conclusion)
-	err = p.notifier.Send(ctx.Ctx, notifyOptions, content)
-	return err
+	log.Debug("check run: %+v", *run)
+	prs, err := p.cli.ListPullRequestBySHA(ctx.Ctx, ctx.Owner, ctx.Repo, run.HeadSHA)
+	if err != nil {
+		return fmt.Errorf("list pull request by sha error: %v", err)
+	}
+
+	log.Debug("pull requests: %v", prs)
+	if len(prs) > 0 {
+		pr := prs[0]
+		notifyOption, ok := p.extra.CheckRunComplete.Authors[pr.User]
+		if !ok {
+			notifyOption = p.extra.CheckRunComplete.Default
+		}
+
+		content := fmt.Sprintf("check run complete, status [%s], conclusion [%s]\n", run.Status, run.Conclusion)
+		content += fmt.Sprintf("Title [%s] Author [%s] %s", pr.Title, pr.User, pr.HTMLURL)
+		log.Debug("check run [%s] [%s] [%s], send notify", pr.Title, run.Status, run.Conclusion)
+		err = p.notifier.Send(ctx.Ctx, &notifyOption, content)
+		return err
+	}
+	return
 }

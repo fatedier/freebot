@@ -33,17 +33,8 @@ type Object struct {
 	hasReviewState bool
 	reviewState    string
 
-	hasCheckSuiteStatus bool
-	checkSuiteStatus    string
-
-	hasCheckSuiteConclusion bool
-	checkSuiteConclusion    string
-
-	hasCheckRunStatus bool
-	checkRunStatus    string
-
-	hasCheckRunConclusion bool
-	checkRunConclusion    string
+	hasCheckEvent bool
+	checkEvent    *CheckEvent
 }
 
 func NewObject(payload interface{}) *Object {
@@ -84,20 +75,8 @@ func NewObject(payload interface{}) *Object {
 		obj.hasReviewState = true
 	}
 
-	if obj.checkRunStatus, err = obj.GetCheckRunStatus(); err == nil {
-		obj.hasCheckRunStatus = true
-	}
-
-	if obj.checkRunConclusion, err = obj.GetCheckRunConclusion(); err == nil {
-		obj.hasCheckRunConclusion = true
-	}
-
-	if obj.checkSuiteStatus, err = obj.GetCheckSuiteStatus(); err == nil {
-		obj.hasCheckSuiteStatus = true
-	}
-
-	if obj.checkSuiteConclusion, err = obj.GetCheckSuiteConclusion(); err == nil {
-		obj.hasCheckSuiteConclusion = true
+	if obj.checkEvent, err = obj.GetCheckEvent(); err == nil {
+		obj.hasCheckEvent = true
 	}
 	return obj
 }
@@ -138,20 +117,8 @@ func (obj *Object) ReviewState() (state string, ok bool) {
 	return obj.reviewState, obj.hasReviewState
 }
 
-func (obj *Object) CheckRunStatus() (status string, ok bool) {
-	return obj.checkRunStatus, obj.hasCheckRunStatus
-}
-
-func (obj *Object) CheckRunConclusion() (conclusion string, ok bool) {
-	return obj.checkRunConclusion, obj.hasCheckRunConclusion
-}
-
-func (obj *Object) CheckSuiteStatus() (status string, ok bool) {
-	return obj.checkSuiteStatus, obj.hasCheckSuiteStatus
-}
-
-func (obj *Object) CheckSuiteConclusion() (conclusion string, ok bool) {
-	return obj.checkSuiteConclusion, obj.hasCheckSuiteConclusion
+func (obj *Object) CheckEvent() (event *CheckEvent, ok bool) {
+	return obj.checkEvent, obj.hasCheckEvent
 }
 
 func (obj *Object) GetAuthor() (author string, err error) {
@@ -264,45 +231,37 @@ func (obj *Object) GetReviewState() (state string, err error) {
 	return
 }
 
-func (obj *Object) GetCheckRunStatus() (status string, err error) {
-	switch v := obj.payload.(type) {
-	case GetCheckRunInterface:
-		status = v.GetCheckRun().GetStatus()
-	default:
-		err = fmt.Errorf("can't get check run from payload")
-		return
-	}
-	return
-}
+func (obj *Object) GetCheckEvent() (event *CheckEvent, err error) {
+	event = &CheckEvent{}
 
-func (obj *Object) GetCheckRunConclusion() (conclusion string, err error) {
 	switch v := obj.payload.(type) {
-	case GetCheckRunInterface:
-		conclusion = v.GetCheckRun().GetConclusion()
-	default:
-		err = fmt.Errorf("can't get check run from payload")
-		return
-	}
-	return
-}
+	case *github.CheckRunEvent:
+		event.Action = v.GetAction()
+		event.IsCheckRun = true
+		event.Run = &CheckRun{
+			ID:         v.GetCheckRun().GetID(),
+			HeadSHA:    v.GetCheckRun().GetHeadSHA(),
+			Status:     v.GetCheckRun().GetStatus(),
+			Conclusion: v.GetCheckRun().GetConclusion(),
 
-func (obj *Object) GetCheckSuiteStatus() (status string, err error) {
-	switch v := obj.payload.(type) {
-	case GetCheckSuiteInterface:
-		status = v.GetCheckSuite().GetStatus()
+			Suite: &CheckSuite{
+				ID:         v.GetCheckRun().GetCheckSuite().GetID(),
+				HeadSHA:    v.GetCheckRun().GetCheckSuite().GetHeadSHA(),
+				Status:     v.GetCheckRun().GetCheckSuite().GetStatus(),
+				Conclusion: v.GetCheckRun().GetCheckSuite().GetConclusion(),
+			},
+		}
+	case *github.CheckSuiteEvent:
+		event.Action = v.GetAction()
+		event.IsCheckSuite = true
+		event.Suite = &CheckSuite{
+			ID:         v.GetCheckSuite().GetID(),
+			HeadSHA:    v.GetCheckSuite().GetHeadSHA(),
+			Status:     v.GetCheckSuite().GetStatus(),
+			Conclusion: v.GetCheckSuite().GetConclusion(),
+		}
 	default:
-		err = fmt.Errorf("can't get check suite from payload")
-		return
-	}
-	return
-}
-
-func (obj *Object) GetCheckSuiteConclusion() (conclusion string, err error) {
-	switch v := obj.payload.(type) {
-	case GetCheckSuiteInterface:
-		conclusion = v.GetCheckSuite().GetConclusion()
-	default:
-		err = fmt.Errorf("can't get check suite from payload")
+		err = fmt.Errorf("can't get check event from payload")
 		return
 	}
 	return
@@ -338,12 +297,4 @@ type GetSenderInterface interface {
 
 type GetReviewInterface interface {
 	GetReview() *github.PullRequestReview
-}
-
-type GetCheckRunInterface interface {
-	GetCheckRun() *github.CheckRun
-}
-
-type GetCheckSuiteInterface interface {
-	GetCheckSuite() *github.CheckSuite
 }

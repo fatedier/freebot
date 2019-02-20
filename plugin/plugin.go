@@ -384,18 +384,9 @@ func (p *BasePlugin) HanldeEvent(ctx *event.EventContext) (notSupport bool, err 
 			case event.ObjectNeedReviewState:
 				_, ok = ctx.Object.ReviewState()
 				paramName = "review state"
-			case event.ObjectNeedCheckRunStatus:
-				_, ok = ctx.Object.CheckRunStatus()
-				paramName = "check run status"
-			case event.ObjectNeedCheckRunConclusion:
-				_, ok = ctx.Object.CheckRunConclusion()
-				paramName = "check run conclusion"
-			case event.ObjectNeedCheckSuiteStatus:
-				_, ok = ctx.Object.CheckSuiteStatus()
-				paramName = "check suite status"
-			case event.ObjectNeedCheckSuiteConclusion:
-				_, ok = ctx.Object.CheckSuiteConclusion()
-				paramName = "check suite conclusion"
+			case event.ObjectNeedCheckEvent:
+				_, ok = ctx.Object.CheckEvent()
+				paramName = "check event"
 			default:
 				log.Error("error ObjectNeedParams setting")
 				continue
