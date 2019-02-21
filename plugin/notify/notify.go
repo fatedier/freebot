@@ -10,6 +10,11 @@ import (
 	"github.com/fatedier/freebot/plugin"
 )
 
+const (
+	NotifyCheckRunComplete   = "check_run_complete"
+	NotifyCheckSuiteComplete = "check_suite_complete"
+)
+
 var (
 	PluginName = "notify"
 )
@@ -19,13 +24,31 @@ func init() {
 }
 
 type Extra struct {
-	CheckSuiteComplete *AuthorNotify `json:"check_suite_complete,omitempty"`
-	CheckRunComplete   *AuthorNotify `json:"check_run_complete,omitempty"`
+	UserNotifyConfs map[string]*notify.NotifyOptions `json:"user_notify_confs"`
+	Events          map[string]*EventNotifyConf      `json:"events"`
 }
 
-type AuthorNotify struct {
-	Default notify.NotifyOptions            `json:"default"`
-	Authors map[string]notify.NotifyOptions `json:"authors"`
+func (ex *Extra) Complete() {
+	if ex.UserNotifyConfs == nil {
+		ex.UserNotifyConfs = make(map[string]*notify.NotifyOptions)
+	}
+	if ex.Events == nil {
+		ex.Events = make(map[string]*EventNotifyConf)
+	}
+	for _, notifyConf := range ex.Events {
+		if notifyConf != nil {
+			notifyConf.UsersMap = make(map[string]struct{})
+			for _, user := range notifyConf.Users {
+				notifyConf.UsersMap[user] = struct{}{}
+			}
+		}
+	}
+}
+
+type EventNotifyConf struct {
+	DefaultUser string              `json:"default_user"`
+	Users       []string            `json:"users"`
+	UsersMap    map[string]struct{} `json:"-"`
 }
 
 type NotifyPlugin struct {
@@ -63,11 +86,13 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 	if err != nil {
 		return nil, err
 	}
+	p.extra.Complete()
 	return p, nil
 }
 
 func (p *NotifyPlugin) handleCheckSuiteEvent(ctx *event.EventContext) (err error) {
-	if p.extra.CheckSuiteComplete == nil {
+	conf, ok := p.extra.Events[NotifyCheckSuiteComplete]
+	if !ok {
 		return
 	}
 
@@ -83,22 +108,24 @@ func (p *NotifyPlugin) handleCheckSuiteEvent(ctx *event.EventContext) (err error
 	log.Debug("pull requests: %v", prs)
 	if len(prs) > 0 {
 		pr := prs[0]
-		notifyOption, ok := p.extra.CheckSuiteComplete.Authors[pr.User]
-		if !ok {
-			notifyOption = p.extra.CheckSuiteComplete.Default
+		notifyOption, err := p.getNotifyOption(NotifyCheckSuiteComplete, pr.User, conf)
+		if err != nil {
+			log.Warn("%v", err)
+			return err
 		}
 
 		content := fmt.Sprintf("check suite complete, status [%s], conclusion [%s]\n", suite.Status, suite.Conclusion)
 		content += fmt.Sprintf("Title [%s] Author [%s]\n%s", pr.Title, pr.User, pr.HTMLURL)
 		log.Debug("check suite [%s] [%s] [%s], send notify", pr.Title, suite.Status, suite.Conclusion)
-		err = p.notifier.Send(ctx.Ctx, &notifyOption, content)
+		err = p.notifier.Send(ctx.Ctx, notifyOption, content)
 		return err
 	}
 	return
 }
 
 func (p *NotifyPlugin) handleCheckRunEvent(ctx *event.EventContext) (err error) {
-	if p.extra.CheckRunComplete == nil {
+	conf, ok := p.extra.Events[NotifyCheckRunComplete]
+	if !ok {
 		return
 	}
 
@@ -114,16 +141,40 @@ func (p *NotifyPlugin) handleCheckRunEvent(ctx *event.EventContext) (err error) 
 	log.Debug("pull requests: %v", prs)
 	if len(prs) > 0 {
 		pr := prs[0]
-		notifyOption, ok := p.extra.CheckRunComplete.Authors[pr.User]
-		if !ok {
-			notifyOption = p.extra.CheckRunComplete.Default
+		notifyOption, err := p.getNotifyOption(NotifyCheckRunComplete, pr.User, conf)
+		if err != nil {
+			log.Warn("%v", err)
+			return err
 		}
 
 		content := fmt.Sprintf("check run complete, status [%s], conclusion [%s]\n", run.Status, run.Conclusion)
 		content += fmt.Sprintf("Title [%s] Author [%s]\n%s", pr.Title, pr.User, pr.HTMLURL)
 		log.Debug("check run [%s] [%s] [%s], send notify", pr.Title, run.Status, run.Conclusion)
-		err = p.notifier.Send(ctx.Ctx, &notifyOption, content)
+		err = p.notifier.Send(ctx.Ctx, notifyOption, content)
 		return err
+	}
+	return
+}
+
+func (p *NotifyPlugin) getNotifyOption(eventName string, user string, conf *EventNotifyConf) (notifyOption *notify.NotifyOptions, err error) {
+	conf, ok := p.extra.Events[eventName]
+	if !ok {
+		return
+	}
+
+	notifyUser := user
+	_, ok = conf.UsersMap[user]
+	if !ok {
+		notifyUser = conf.DefaultUser
+	}
+	if notifyUser == "" {
+		return
+	}
+
+	notifyOption, ok = p.extra.UserNotifyConfs[notifyUser]
+	if !ok {
+		err = fmt.Errorf("notify user [%s] conf not found", notifyUser)
+		return
 	}
 	return
 }
