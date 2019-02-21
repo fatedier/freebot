@@ -66,6 +66,14 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 		v := &github.PullRequestReviewCommentEvent{}
 		err = json.Unmarshal([]byte(content), &v)
 		payload = v
+	case event.EvCheckRun:
+		v := &github.CheckRunEvent{}
+		err = json.Unmarshal([]byte(content), &v)
+		payload = v
+	case event.EvCheckSuite:
+		v := &github.CheckSuiteEvent{}
+		err = json.Unmarshal([]byte(content), &v)
+		payload = v
 	case event.EvPing:
 		return nil
 	default:
@@ -99,7 +107,7 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 	)
 	object := client.NewObject(payload)
 	for _, p := range plugins {
-		notSupport, partialErr = p.HanldeEvent(&event.EventContext{
+		notSupport, partialErr = p.HandleEvent(&event.EventContext{
 			Ctx:    ctx,
 			Type:   evType,
 			Owner:  owner,

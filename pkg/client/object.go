@@ -30,8 +30,14 @@ type Object struct {
 	hasLabels bool
 	labels    []string
 
+	hasIssueHTMLURL bool
+	issueHTMLURL    string
+
 	hasReviewState bool
 	reviewState    string
+
+	hasCheckEvent bool
+	checkEvent    *CheckEvent
 }
 
 func NewObject(payload interface{}) *Object {
@@ -68,8 +74,16 @@ func NewObject(payload interface{}) *Object {
 		obj.hasLabels = true
 	}
 
+	if obj.issueHTMLURL, err = obj.GetIssueHTMLURL(); err == nil {
+		obj.hasIssueHTMLURL = true
+	}
+
 	if obj.reviewState, err = obj.GetReviewState(); err == nil {
 		obj.hasReviewState = true
+	}
+
+	if obj.checkEvent, err = obj.GetCheckEvent(); err == nil {
+		obj.hasCheckEvent = true
 	}
 	return obj
 }
@@ -106,8 +120,16 @@ func (obj *Object) Labels() (labels []string, ok bool) {
 	return obj.labels, obj.hasLabels
 }
 
+func (obj *Object) IssueHTMLURL() (url string, ok bool) {
+	return obj.issueHTMLURL, obj.hasIssueHTMLURL
+}
+
 func (obj *Object) ReviewState() (state string, ok bool) {
 	return obj.reviewState, obj.hasReviewState
+}
+
+func (obj *Object) CheckEvent() (event *CheckEvent, ok bool) {
+	return obj.checkEvent, obj.hasCheckEvent
 }
 
 func (obj *Object) GetAuthor() (author string, err error) {
@@ -209,12 +231,61 @@ func (obj *Object) GetLables() (labels []string, err error) {
 	return
 }
 
+func (obj *Object) GetIssueHTMLURL() (url string, err error) {
+	switch v := obj.payload.(type) {
+	case GetIssueInterface:
+		url = v.GetIssue().GetHTMLURL()
+	case GetPullRequestInterface:
+		url = v.GetPullRequest().GetHTMLURL()
+	default:
+		err = fmt.Errorf("can't get issue HTMLURL from payload")
+		return
+	}
+	return
+}
+
 func (obj *Object) GetReviewState() (state string, err error) {
 	switch v := obj.payload.(type) {
 	case GetReviewInterface:
 		state = v.GetReview().GetState()
 	default:
 		err = fmt.Errorf("can't get review from payload")
+		return
+	}
+	return
+}
+
+func (obj *Object) GetCheckEvent() (event *CheckEvent, err error) {
+	event = &CheckEvent{}
+
+	switch v := obj.payload.(type) {
+	case *github.CheckRunEvent:
+		event.Action = v.GetAction()
+		event.IsCheckRun = true
+		event.Run = &CheckRun{
+			ID:         v.GetCheckRun().GetID(),
+			HeadSHA:    v.GetCheckRun().GetHeadSHA(),
+			Status:     v.GetCheckRun().GetStatus(),
+			Conclusion: v.GetCheckRun().GetConclusion(),
+
+			Suite: &CheckSuite{
+				ID:         v.GetCheckRun().GetCheckSuite().GetID(),
+				HeadSHA:    v.GetCheckRun().GetCheckSuite().GetHeadSHA(),
+				Status:     v.GetCheckRun().GetCheckSuite().GetStatus(),
+				Conclusion: v.GetCheckRun().GetCheckSuite().GetConclusion(),
+			},
+		}
+	case *github.CheckSuiteEvent:
+		event.Action = v.GetAction()
+		event.IsCheckSuite = true
+		event.Suite = &CheckSuite{
+			ID:         v.GetCheckSuite().GetID(),
+			HeadSHA:    v.GetCheckSuite().GetHeadSHA(),
+			Status:     v.GetCheckSuite().GetStatus(),
+			Conclusion: v.GetCheckSuite().GetConclusion(),
+		}
+	default:
+		err = fmt.Errorf("can't get check event from payload")
 		return
 	}
 	return

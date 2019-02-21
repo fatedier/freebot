@@ -9,6 +9,7 @@ freebot 是一个帮助团队基于 github 的 issue 和 pull request 进行工�
 <!-- vim-markdown-toc GFM -->
 
 * [简单示例](#简单示例)
+* [配置](#配置)
 * [功能](#功能)
     * [插件](#插件)
     * [别名](#别名)
@@ -56,8 +57,7 @@ freebot 会用定期轮询的方式读取指定目录的配置，如果检测到
         "plugins": {
             "assign": {
                 "enable"
-            },
-            ...
+            }
         }
     }
 }

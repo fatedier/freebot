@@ -7,6 +7,7 @@ import (
 	"github.com/fatedier/freebot/pkg/client"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/log"
+	"github.com/fatedier/freebot/pkg/notify"
 	"github.com/fatedier/freebot/plugin"
 )
 
@@ -28,19 +29,21 @@ type Extra struct {
 type AssignPlugin struct {
 	*plugin.BasePlugin
 
-	cli client.ClientInterface
+	cli      client.ClientInterface
+	notifier notify.NotifyInterface
 }
 
-func NewAssignPlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
+func NewAssignPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
 	p := &AssignPlugin{
-		cli: cli,
+		cli:      cli,
+		notifier: notifier,
 	}
 	handlerOptions := []plugin.HandlerOptions{
 		plugin.HandlerOptions{
 			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
 			Actions:          []string{event.ActionCreated},
 			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
-			Handler:          p.hanldeCommentEvent,
+			Handler:          p.handleCommentEvent,
 		},
 	}
 	options.Handlers = handlerOptions
@@ -49,7 +52,7 @@ func NewAssignPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 	return p, nil
 }
 
-func (p *AssignPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
+func (p *AssignPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 

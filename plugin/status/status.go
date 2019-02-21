@@ -5,6 +5,7 @@ import (
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/log"
+	"github.com/fatedier/freebot/pkg/notify"
 	"github.com/fatedier/freebot/plugin"
 )
 
@@ -76,13 +77,15 @@ type Extra struct {
 type StatusPlugin struct {
 	*plugin.BasePlugin
 
-	extra Extra
-	cli   client.ClientInterface
+	extra    Extra
+	cli      client.ClientInterface
+	notifier notify.NotifyInterface
 }
 
-func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
+func NewStatusPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
 	p := &StatusPlugin{
-		cli: cli,
+		cli:      cli,
+		notifier: notifier,
 	}
 
 	handlerOptions := []plugin.HandlerOptions{
@@ -108,7 +111,7 @@ func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
 			Actions:          []string{event.ActionCreated},
 			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber},
-			Handler:          p.hanldeCommentEvent,
+			Handler:          p.handleCommentEvent,
 		},
 	}
 	options.Handlers = handlerOptions
@@ -122,7 +125,7 @@ func NewStatusPlugin(cli client.ClientInterface, options plugin.PluginOptions) (
 	return p, nil
 }
 
-func (p *StatusPlugin) hanldeCommentEvent(ctx *event.EventContext) (err error) {
+func (p *StatusPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 	msg, _ := ctx.Object.Body()
 	number, _ := ctx.Object.Number()
 

@@ -15,10 +15,14 @@ import (
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/httputil"
 	"github.com/fatedier/freebot/pkg/log"
+	"github.com/fatedier/freebot/pkg/notify"
 	"github.com/fatedier/freebot/plugin"
 	_ "github.com/fatedier/freebot/plugin/assign"
+	_ "github.com/fatedier/freebot/plugin/label"
 	_ "github.com/fatedier/freebot/plugin/lifecycle"
 	_ "github.com/fatedier/freebot/plugin/merge"
+	_ "github.com/fatedier/freebot/plugin/module"
+	_ "github.com/fatedier/freebot/plugin/notify"
 	_ "github.com/fatedier/freebot/plugin/status"
 
 	"github.com/google/go-github/github"
@@ -56,6 +60,7 @@ type Service struct {
 
 	eventHandler *EventHandler
 	cli          client.ClientInterface
+	notifier     notify.NotifyInterface
 
 	staticRepoConfs map[string]RepoConf
 	extraRepoConfs  map[string]RepoConf
@@ -77,6 +82,8 @@ func NewService(cfg Config) (*Service, error) {
 	svc := &Service{
 		Config: cfg,
 	}
+
+	svc.notifier = notify.NewNotifyController()
 
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: cfg.GithubAccessToken},
@@ -192,7 +199,7 @@ func (svc *Service) createPlugins(repoConfs map[string]RepoConf) (plugins map[st
 			}
 			baseOptions := plugin.PluginOptions{}
 			baseOptions.Complete(arrs[0], arrs[1], repoConf.Alias, repoConf.Roles, pluginConf.Preconditions, pluginConf.Extra)
-			p, err := plugin.Create(svc.cli, pluginName, baseOptions)
+			p, err := plugin.Create(svc.cli, svc.notifier, pluginName, baseOptions)
 			if err != nil {
 				err = fmt.Errorf("create plugin [%s] error: %v", pluginName, err)
 				log.Error("%v", err)
