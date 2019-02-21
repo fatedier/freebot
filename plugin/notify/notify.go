@@ -2,8 +2,10 @@ package notify
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fatedier/freebot/pkg/client"
+	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/log"
 	"github.com/fatedier/freebot/pkg/notify"
@@ -17,14 +19,27 @@ const (
 
 var (
 	PluginName = "notify"
+	CmdPing    = "ping"
 )
 
 func init() {
 	plugin.Register(PluginName, NewNotifyPlugin)
 }
 
+type EventNotifyConf struct {
+	DefaultUser string              `json:"default_user"`
+	Users       []string            `json:"users"`
+	UsersMap    map[string]struct{} `json:"-"`
+}
+
+type PingOption struct {
+	Disable       bool                  `json:"disable"`
+	Preconditions []config.Precondition `json:"preconditions"`
+}
+
 type Extra struct {
 	UserNotifyConfs map[string]*notify.NotifyOptions `json:"user_notify_confs"`
+	Ping            PingOption                       `json:"ping"`
 	Events          map[string]*EventNotifyConf      `json:"events"`
 }
 
@@ -43,12 +58,6 @@ func (ex *Extra) Complete() {
 			}
 		}
 	}
-}
-
-type EventNotifyConf struct {
-	DefaultUser string              `json:"default_user"`
-	Users       []string            `json:"users"`
-	UsersMap    map[string]struct{} `json:"-"`
 }
 
 type NotifyPlugin struct {
@@ -77,6 +86,12 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 			ObjectNeedParams: []int{event.ObjectNeedCheckEvent},
 			Handler:          p.handleCheckRunEvent,
 		},
+		plugin.HandlerOptions{
+			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
+			Actions:          []string{event.ActionCreated},
+			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedCommentAuthor, event.ObjectNeedIssueHTMLURL},
+			Handler:          p.handleCommentEvent,
+		},
 	}
 	options.Handlers = handlerOptions
 
@@ -88,6 +103,56 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 	}
 	p.extra.Complete()
 	return p, nil
+}
+
+func (p *NotifyPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
+	if p.extra.Ping.Disable {
+		return nil
+	}
+
+	msg, _ := ctx.Object.Body()
+	author, _ := ctx.Object.CommentAuthor()
+	issueHTMLURL, _ := ctx.Object.IssueHTMLURL()
+
+	err = p.CheckPreconditions(ctx, p.extra.Ping.Preconditions)
+	if err != nil {
+		log.Warn("preconditions check failed: %v", err)
+		return
+	}
+
+	cmds := p.ParseCmdsFromMsg(msg, false)
+	for _, cmd := range cmds {
+		cmd.Name = p.ParseCmdAlias(cmd.Name)
+
+		additionalMsg := ""
+		switch cmd.Name {
+		case CmdPing:
+			log.Debug("ping event")
+			if len(cmd.Args) == 0 {
+				continue
+			}
+
+			if len(cmd.Args) > 1 {
+				additionalMsg = strings.Join(cmd.Args[1:], " ")
+			}
+			user := p.ParseUserAlias(strings.TrimLeft(cmd.Args[0], "@"))
+
+			notifyOption, ok := p.extra.UserNotifyConfs[user]
+			if !ok {
+				err = fmt.Errorf("notify user [%s] conf not found", user)
+				return
+			}
+
+			content := fmt.Sprintf("You are pinged by [%s]", author)
+			content += fmt.Sprintf("\n%s", issueHTMLURL)
+			if additionalMsg != "" {
+				content += fmt.Sprintf("\n%s", additionalMsg)
+			}
+			//log.Debug("check run [%s] [%s] [%s], send notify", pr.Title, run.Status, run.Conclusion)
+			err = p.notifier.Send(ctx.Ctx, notifyOption, content)
+		}
+	}
+	return
 }
 
 func (p *NotifyPlugin) handleCheckSuiteEvent(ctx *event.EventContext) (err error) {
