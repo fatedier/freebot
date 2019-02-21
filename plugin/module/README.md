@@ -16,7 +16,7 @@
         "label_prefix": "module",
         "file_prefix_map": {
             "dev/foo/": "foo",
-            "dev/bar/": "bar"
+            "dev/bar/": "bar",
             "": "all"
         }
     }

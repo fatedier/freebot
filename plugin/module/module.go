@@ -94,16 +94,20 @@ func (p *ModulePlugin) handlePullRequestEvent(ctx *event.EventContext) (err erro
 		return err
 	}
 
-	labels := make([]string, 0)
+	labelsMap := make(map[string]struct{})
 	for _, file := range files {
 		for _, m := range p.extra.moduleMaps {
 			if strings.HasPrefix(file, m.Prefix) {
-				labels = append(labels, p.extra.LablePrefix+"/"+m.Module)
+				labelsMap[p.extra.LablePrefix+"/"+m.Module] = struct{}{}
 				break
 			}
 		}
 	}
 
+	labels := make([]string, 0, len(labelsMap))
+	for name, _ := range labelsMap {
+		labels = append(labels, name)
+	}
 	err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
 		Owner:              ctx.Owner,
 		Repo:               ctx.Repo,
