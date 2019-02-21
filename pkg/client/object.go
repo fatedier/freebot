@@ -30,6 +30,9 @@ type Object struct {
 	hasLabels bool
 	labels    []string
 
+	hasIssueHTMLURL bool
+	issueHTMLURL    string
+
 	hasReviewState bool
 	reviewState    string
 
@@ -69,6 +72,10 @@ func NewObject(payload interface{}) *Object {
 
 	if obj.labels, err = obj.GetLables(); err == nil {
 		obj.hasLabels = true
+	}
+
+	if obj.issueHTMLURL, err = obj.GetIssueHTMLURL(); err == nil {
+		obj.hasIssueHTMLURL = true
 	}
 
 	if obj.reviewState, err = obj.GetReviewState(); err == nil {
@@ -111,6 +118,10 @@ func (obj *Object) Action() (action string, ok bool) {
 
 func (obj *Object) Labels() (labels []string, ok bool) {
 	return obj.labels, obj.hasLabels
+}
+
+func (obj *Object) IssueHTMLURL() (url string, ok bool) {
+	return obj.issueHTMLURL, obj.hasIssueHTMLURL
 }
 
 func (obj *Object) ReviewState() (state string, ok bool) {
@@ -216,6 +227,19 @@ func (obj *Object) GetLables() (labels []string, err error) {
 	}
 	for _, v := range outPoint {
 		labels = append(labels, v.GetName())
+	}
+	return
+}
+
+func (obj *Object) GetIssueHTMLURL() (url string, err error) {
+	switch v := obj.payload.(type) {
+	case GetIssueInterface:
+		url = v.GetIssue().GetHTMLURL()
+	case GetPullRequestInterface:
+		url = v.GetPullRequest().GetHTMLURL()
+	default:
+		err = fmt.Errorf("can't get issue HTMLURL from payload")
+		return
 	}
 	return
 }

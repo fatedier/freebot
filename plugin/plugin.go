@@ -381,6 +381,9 @@ func (p *BasePlugin) HandleEvent(ctx *event.EventContext) (notSupport bool, err 
 			case event.ObjectNeedLabels:
 				_, ok = ctx.Object.Labels()
 				paramName = "labels"
+			case event.ObjectNeedIssueHTMLURL:
+				_, ok = ctx.Object.IssueHTMLURL()
+				paramName = "issue HTMLURL"
 			case event.ObjectNeedReviewState:
 				_, ok = ctx.Object.ReviewState()
 				paramName = "review state"

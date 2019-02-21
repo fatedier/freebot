@@ -44,6 +44,7 @@ const (
 	ObjectNeedCommentAuthor
 	ObjectNeedSenderUser
 	ObjectNeedLabels
+	ObjectNeedIssueHTMLURL
 	ObjectNeedReviewState
 	ObjectNeedCheckEvent
 )
