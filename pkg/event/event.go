@@ -19,6 +19,7 @@ const (
 const (
 	ActionCreated              = "created"
 	ActionOpened               = "opened"
+	ActionReopened             = "reopened"
 	ActionSubmitted            = "submitted"
 	ActionDeleted              = "deleted"
 	ActionClosed               = "closed"

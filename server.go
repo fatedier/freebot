@@ -21,6 +21,7 @@ import (
 	_ "github.com/fatedier/freebot/plugin/label"
 	_ "github.com/fatedier/freebot/plugin/lifecycle"
 	_ "github.com/fatedier/freebot/plugin/merge"
+	_ "github.com/fatedier/freebot/plugin/module"
 	_ "github.com/fatedier/freebot/plugin/notify"
 	_ "github.com/fatedier/freebot/plugin/status"
 

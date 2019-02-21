@@ -7,7 +7,9 @@
 * [Assign](/plugin/assign)
 * [Status](/plugin/status)
 * [Merge](/plugin/merge)
-* [LifeCycle](/plugin/lifecycel)
+* [LifeCycle](/plugin/lifecycle)
+* [Notify](/plugin/notify)
+* [Label](/plugin/label)
 
 ### 配置说明
 

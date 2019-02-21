@@ -48,6 +48,19 @@ func (cli *githubClient) ListPullRequestBySHA(ctx context.Context, owner, repo s
 	return
 }
 
+func (cli *githubClient) ListFilesByPullRequest(ctx context.Context, owner, repo string, number int) (files []string, err error) {
+	files = make([]string, 0)
+	commitFiles, _, err := cli.client.PullRequests.ListFiles(ctx, owner, repo, number, &github.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, commitFile := range commitFiles {
+		files = append(files, commitFile.GetFilename())
+	}
+	return
+}
+
 // operations
 type RequestReviewsOperation struct {
 	Owner     string
