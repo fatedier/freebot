@@ -135,7 +135,7 @@ func (p *BasePlugin) UnmarshalTo(v interface{}) error {
 	if err = json.Unmarshal(buf, &v); err != nil {
 		return fmt.Errorf("[%s] extra conf parse failed", p.name)
 	}
-	log.Info("[%s/%s] [%s]", p.owner, p.repo, p.name)
+	log.Info("[%s/%s] [%s] %v", p.owner, p.repo, p.name, p.extra)
 	return nil
 }
 
