@@ -135,7 +135,7 @@ func (p *BasePlugin) UnmarshalTo(v interface{}) error {
 	if err = json.Unmarshal(buf, &v); err != nil {
 		return fmt.Errorf("[%s] extra conf parse failed", p.name)
 	}
-	log.Info("[%s/%s] [%s]", p.owner, p.repo, p.name)
+	log.Info("[%s/%s] [%s] %v", p.owner, p.repo, p.name, p.extra)
 	return nil
 }
 
@@ -282,6 +282,14 @@ func (p *BasePlugin) CheckPrecondition(ctx *event.EventContext, precondition con
 			return
 		}
 	}
+
+	if len(precondition.MatchLabels) > 0 {
+		err = p.CheckMatchLabels(ctx, precondition.MatchLabels)
+		if err != nil {
+			return
+		}
+	}
+
 	return nil
 }
 
@@ -342,6 +350,36 @@ func (p *BasePlugin) CheckRequiredLabelPrefix(ctx *event.EventContext, prefix []
 		}
 		if !hasOne {
 			return fmt.Errorf("check required label prefix failed: %s prefix label not found", prefixStr)
+		}
+	}
+	return nil
+}
+
+func (p *BasePlugin) CheckMatchLabels(ctx *event.EventContext, matchLabels []config.MatchLabel) error {
+	all, ok := ctx.Object.Labels()
+	if !ok {
+		return fmt.Errorf("check match labels failed: get labels failed")
+	}
+
+	labelsMap := make(map[string]struct{})
+	for _, name := range all {
+		labelsMap[name] = struct{}{}
+	}
+
+	for name, _ := range labelsMap {
+		arrs := strings.Split(name, "/")
+		if len(arrs) < 2 {
+			continue
+		}
+		base := arrs[0]
+		sub := arrs[1]
+		for _, conf := range matchLabels {
+			if conf.BasePrefix == base {
+				target := conf.TargetPrefix + "/" + sub
+				if _, ok := labelsMap[target]; !ok {
+					return fmt.Errorf("check match labels failed: %s has not required label %s", name, conf.TargetPrefix+"/"+sub)
+				}
+			}
 		}
 	}
 	return nil
