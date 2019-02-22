@@ -6,6 +6,7 @@
 
 ```
 /lgtm
+/unlgtm
 ```
 
 ### extra

@@ -13,6 +13,7 @@ import (
 var (
 	PluginName = "lgtm"
 	CmdLGTM    = "lgtm"
+	CmdUnLGTM  = "unlgtm"
 )
 
 func init() {
@@ -64,6 +65,12 @@ func NewLGTMPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, 
 			Handler:          p.handlePullRequestReviewEvent,
 		},
 		plugin.HandlerOptions{
+			Events:           []string{event.EvPullRequest},
+			Actions:          []string{event.ActionSynchronize},
+			ObjectNeedParams: []int{event.ObjectNeedNumber},
+			Handler:          p.handlePullRequestSynchronizeEvent,
+		},
+		plugin.HandlerOptions{
 			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
 			Actions:          []string{event.ActionCreated},
 			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber, event.ObjectNeedLabels, event.ObjectNeedCommentAuthor},
@@ -90,8 +97,12 @@ func (p *LGTMPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 	for _, cmd := range cmds {
 		cmd.Name = p.ParseCmdAlias(cmd.Name)
 
-		if cmd.Name == CmdLGTM {
+		switch cmd.Name {
+		case CmdLGTM:
 			return p.handleLGTM(ctx, lgtmUser)
+		case CmdUnLGTM:
+			// TODO
+			// remove attached labels by comment author
 		}
 	}
 	return
@@ -105,6 +116,24 @@ func (p *LGTMPlugin) handlePullRequestReviewEvent(ctx *event.EventContext) (err 
 
 	lgtmUser, _ := ctx.Object.SenderUser()
 	return p.handleLGTM(ctx, lgtmUser)
+}
+
+func (p *LGTMPlugin) handlePullRequestSynchronizeEvent(ctx *event.EventContext) (err error) {
+	number, _ := ctx.Object.Number()
+	for _, t := range p.extra.TargetLabels {
+		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
+			Owner:              ctx.Owner,
+			Repo:               ctx.Repo,
+			ReplaceLabelPrefix: t.TargetPrefix + "/",
+			Number:             number,
+			Labels:             []string{},
+		})
+		if err != nil {
+			return
+		}
+		log.Debug("remove labels with prefix: %s", t.TargetPrefix)
+	}
+	return
 }
 
 func (p *LGTMPlugin) handleLGTM(ctx *event.EventContext, lgtmUser string) (err error) {
