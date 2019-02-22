@@ -11,6 +11,7 @@
 * [Notify](/plugin/notify)
 * [Label](/plugin/label)
 * [Module](/plugin/module)
+* [LGTM](/plugin/lgtm)
 
 ### 配置说明
 
