@@ -26,17 +26,13 @@ type TargetLabel struct {
 }
 
 type Extra struct {
-	BaseLabelPrefix string                         `json:"base_label_prefix"`
-	LabelRoles      map[string]map[string][]string `json:"label_roles"`
-	TargetLabels    []TargetLabel                  `json:"target_labels"`
+	BaseLabelPrefix string        `json:"base_label_prefix"`
+	TargetLabels    []TargetLabel `json:"target_labels"`
 }
 
 func (ex *Extra) Complete() {
 	if ex.BaseLabelPrefix != "" {
 		ex.BaseLabelPrefix = "module"
-	}
-	if ex.LabelRoles == nil {
-		ex.LabelRoles = make(map[string]map[string][]string)
 	}
 	if ex.TargetLabels == nil {
 		ex.TargetLabels = make([]TargetLabel, 0)
@@ -140,7 +136,9 @@ func (p *LGTMPlugin) handleLGTM(ctx *event.EventContext, lgtmUser string) (err e
 	number, _ := ctx.Object.Number()
 	labels, _ := ctx.Object.Labels()
 	targetLabels := make([]string, 0)
-	if len(p.extra.LabelRoles) == 0 || len(p.extra.TargetLabels) == 0 {
+
+	labelRoles := p.GetLabelRoles()
+	if len(labelRoles) == 0 || len(p.extra.TargetLabels) == 0 {
 		return
 	}
 
@@ -156,7 +154,7 @@ func (p *LGTMPlugin) handleLGTM(ctx *event.EventContext, lgtmUser string) (err e
 			continue
 		}
 
-		rolesMap, ok := p.extra.LabelRoles[sub]
+		rolesMap, ok := labelRoles[label]
 		if !ok {
 			continue
 		}

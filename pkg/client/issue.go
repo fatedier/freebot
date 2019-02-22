@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-github/github"
 )
 
+// Operations
 type ReplaceLabelOperation struct {
 	Owner              string
 	Repo               string
@@ -148,4 +149,18 @@ func (cli *githubClient) doReopenOperation(ctx context.Context, op *ReopenOperat
 	}
 
 	return fmt.Errorf("can't get issue or pr from object")
+}
+
+type AddIssueCommentOperation struct {
+	Owner   string
+	Repo    string
+	Number  int
+	Content string
+}
+
+func (cli *githubClient) doAddIssueCommentOperation(ctx context.Context, op *AddIssueCommentOperation) error {
+	_, _, err := cli.client.Issues.CreateComment(ctx, op.Owner, op.Repo, op.Number, &github.IssueComment{
+		Body: &op.Content,
+	})
+	return err
 }

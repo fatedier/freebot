@@ -17,15 +17,6 @@
 {
     "extra": {
         "base_label_prefix": "module",
-        "label_roles": {
-            "module1": {
-                "owner": ["user1", "user2"],
-                "qa": ["user3"]
-            },
-            "module2": {
-                "owner": ["user4"]
-            }
-        },
         "target_labels": [
             {
                 "role": "owner",

@@ -45,9 +45,10 @@ type Config struct {
 }
 
 type RepoConf struct {
-	Alias   config.AliasOptions     `json:"alias"`
-	Roles   config.RoleOptions      `json:"roles"` // role -> []string{user1, user2}
-	Plugins map[string]PluginConfig `json:"plugins"`
+	Alias      config.AliasOptions     `json:"alias"`
+	Roles      config.RoleOptions      `json:"roles"`       // role -> []string{user1, user2}
+	LabelRoles config.LabelRoles       `json:"label_roles"` // label -> role -> users
+	Plugins    map[string]PluginConfig `json:"plugins"`
 }
 
 type PluginConfig struct {
@@ -199,7 +200,7 @@ func (svc *Service) createPlugins(repoConfs map[string]RepoConf) (plugins map[st
 				return nil, fmt.Errorf("repo name invalid")
 			}
 			baseOptions := plugin.PluginOptions{}
-			baseOptions.Complete(arrs[0], arrs[1], repoConf.Alias, repoConf.Roles, pluginConf.Preconditions, pluginConf.Extra)
+			baseOptions.Complete(arrs[0], arrs[1], repoConf.Alias, repoConf.Roles, repoConf.LabelRoles, pluginConf.Preconditions, pluginConf.Extra)
 			p, err := plugin.Create(svc.cli, svc.notifier, pluginName, baseOptions)
 			if err != nil {
 				err = fmt.Errorf("create plugin [%s] error: %v", pluginName, err)

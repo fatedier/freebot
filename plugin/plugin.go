@@ -52,6 +52,7 @@ type PluginOptions struct {
 	Repo          string
 	Alias         config.AliasOptions
 	Roles         config.RoleOptions
+	LabelRoles    config.LabelRoles
 	Preconditions []config.Precondition
 	Extra         interface{}
 
@@ -60,12 +61,13 @@ type PluginOptions struct {
 }
 
 func (options *PluginOptions) Complete(owner, repo string, alias config.AliasOptions,
-	roles config.RoleOptions, preconditions []config.Precondition, extra interface{}) {
+	roles config.RoleOptions, labelRoles config.LabelRoles, preconditions []config.Precondition, extra interface{}) {
 
 	options.Owner = owner
 	options.Repo = repo
 	options.Alias = alias
 	options.Roles = roles
+	options.LabelRoles = labelRoles
 	options.Preconditions = preconditions
 	if options.Preconditions == nil {
 		options.Preconditions = make([]config.Precondition, 0)
@@ -79,6 +81,7 @@ type BasePlugin struct {
 	repo          string
 	alias         config.AliasOptions
 	roles         config.RoleOptions
+	labelRoles    config.LabelRoles
 	preconditions []config.Precondition
 	extra         interface{}
 
@@ -92,6 +95,7 @@ func NewBasePlugin(name string, options PluginOptions) *BasePlugin {
 		repo:          options.Repo,
 		alias:         options.Alias,
 		roles:         options.Roles,
+		labelRoles:    options.LabelRoles,
 		preconditions: options.Preconditions,
 		extra:         options.Extra,
 		handlers:      options.Handlers,
@@ -116,6 +120,10 @@ func (p *BasePlugin) GetAlias() config.AliasOptions {
 
 func (p *BasePlugin) GetRoles() config.RoleOptions {
 	return p.roles
+}
+
+func (p *BasePlugin) GetLabelRoles() config.LabelRoles {
+	return p.labelRoles
 }
 
 func (p *BasePlugin) GetPreconditions() []config.Precondition {
