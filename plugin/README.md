@@ -10,6 +10,7 @@
 * [LifeCycle](/plugin/lifecycle)
 * [Notify](/plugin/notify)
 * [Label](/plugin/label)
+* [Module](/plugin/module)
 
 ### 配置说明
 
