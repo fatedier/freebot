@@ -46,7 +46,13 @@
     "is_author": false,
     "required_roles": [],
     "required_labels": [],
-    "required_label_prefix": []
+    "required_label_prefix": [],
+    "match_labels": [
+        {
+            "base_prefix": "module",
+            "target_prefix": "approve"
+        }
+    ]
 }
 ```
 
@@ -54,6 +60,7 @@
 * required_roles: 要求 issue 或 PR 或 comment 的 author 需要是某些指定的角色。
 * required_labels: 要求 issue 或 PR 含有指定的 label。
 * required_label_prefix: 要求 issue 或 PR 含有指定前缀的 label。
+* match_labels: 要求 issue 或 PR 中所有的 `module/` 为前缀的 label 都有对应的以 `approve/` 为前缀的 label。
 
 ### extra
 
