@@ -60,7 +60,6 @@ func NewGithubAppInstallTransport(tr http.RoundTripper, appID int, privateKeyFil
 	}
 	for _, install := range installs {
 		id := int(install.GetID())
-		fmt.Printf("install id [%d]\n", id)
 		insTr, err := ghinstallation.New(tr, appID, id, privateKey)
 		if err != nil {
 			return nil, fmt.Errorf("get transport for install ID %d error: %v", id, err)
