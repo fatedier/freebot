@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fatedier/freebot/pkg/client"
+	"github.com/fatedier/freebot/pkg/client/githubapp"
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/httputil"
 	"github.com/fatedier/freebot/pkg/log"
@@ -31,11 +32,13 @@ import (
 )
 
 type Config struct {
-	BindAddr          string `json:"bind_addr"`
-	LogLevel          string `json:"log_level"`
-	LogFile           string `json:"log_file"`
-	LogMaxDays        int64  `json:"log_max_days"`
-	GithubAccessToken string `json:"github_access_token"`
+	BindAddr            string `json:"bind_addr"`
+	LogLevel            string `json:"log_level"`
+	LogFile             string `json:"log_file"`
+	LogMaxDays          int64  `json:"log_max_days"`
+	GithubAccessToken   string `json:"github_access_token"`
+	GithubAppPrivateKey string `json:"github_app_private_key"`
+	GithubAppID         int    `json:"github_app_id"`
 
 	// repo -> plugin
 	RepoConfs map[string]RepoConf `json:"repo_confs"`
@@ -87,12 +90,24 @@ func NewService(cfg Config) (*Service, error) {
 
 	svc.notifier = notify.NewNotifyController()
 
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: cfg.GithubAccessToken},
-	)
-	tc := oauth2.NewClient(context.Background(), ts)
-	githubCli := github.NewClient(tc)
-	svc.cli = client.NewGithubClient(githubCli)
+	requireInstallation := false
+	if cfg.GithubAccessToken != "" {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: cfg.GithubAccessToken},
+		)
+		tc := oauth2.NewClient(context.Background(), ts)
+		githubCli := github.NewClient(tc)
+		svc.cli = client.NewGithubClient(githubCli)
+	} else if cfg.GithubAppPrivateKey != "" {
+		tr, err := githubapp.NewGithubAppInstallTransport(http.DefaultTransport, cfg.GithubAppID, cfg.GithubAppPrivateKey)
+		if err != nil {
+			return nil, err
+		}
+
+		githubCli := github.NewClient(&http.Client{Transport: tr})
+		svc.cli = client.NewGithubClient(githubCli)
+		requireInstallation = true
+	}
 
 	svc.staticRepoConfs = cfg.RepoConfs
 	if svc.RepoConfDir != "" {
@@ -110,7 +125,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("create plugins error: %v", err)
 	}
 
-	svc.eventHandler = NewEventHandler(plugins)
+	svc.eventHandler = NewEventHandler(requireInstallation, plugins)
 	return svc, nil
 }
 
