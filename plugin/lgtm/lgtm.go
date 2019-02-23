@@ -1,6 +1,7 @@
 package lgtm
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/fatedier/freebot/pkg/client"
@@ -55,10 +56,11 @@ func NewLGTMPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, 
 
 	handlerOptions := []plugin.HandlerOptions{
 		plugin.HandlerOptions{
-			Events:           []string{event.EvPullRequestReview},
-			Actions:          []string{event.ActionSubmitted},
-			ObjectNeedParams: []int{event.ObjectNeedNumber, event.ObjectNeedSenderUser, event.ObjectNeedReviewState, event.ObjectNeedLabels},
-			Handler:          p.handlePullRequestReviewEvent,
+			Events:  []string{event.EvPullRequestReview},
+			Actions: []string{event.ActionSubmitted},
+			ObjectNeedParams: []int{event.ObjectNeedNumber, event.ObjectNeedSenderUser, event.ObjectNeedReviewState,
+				event.ObjectNeedLabels, event.ObjectNeedAuthor},
+			Handler: p.handlePullRequestReviewEvent,
 		},
 		plugin.HandlerOptions{
 			Events:           []string{event.EvPullRequest},
@@ -67,10 +69,11 @@ func NewLGTMPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, 
 			Handler:          p.handlePullRequestSynchronizeEvent,
 		},
 		plugin.HandlerOptions{
-			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
-			Actions:          []string{event.ActionCreated},
-			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber, event.ObjectNeedLabels, event.ObjectNeedCommentAuthor},
-			Handler:          p.handleCommentEvent,
+			Events:  []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
+			Actions: []string{event.ActionCreated},
+			ObjectNeedParams: []int{event.ObjectNeedBody, event.ObjectNeedNumber, event.ObjectNeedLabels,
+				event.ObjectNeedCommentAuthor, event.ObjectNeedAuthor},
+			Handler: p.handleCommentEvent,
 		},
 	}
 	options.Handlers = handlerOptions
@@ -133,6 +136,11 @@ func (p *LGTMPlugin) handlePullRequestSynchronizeEvent(ctx *event.EventContext) 
 }
 
 func (p *LGTMPlugin) handleLGTM(ctx *event.EventContext, lgtmUser string) (err error) {
+	author, _ := ctx.Object.Author()
+	if author == lgtmUser {
+		return fmt.Errorf("lgtm is not valid for author")
+	}
+
 	number, _ := ctx.Object.Number()
 	labels, _ := ctx.Object.Labels()
 	targetLabels := make([]string, 0)

@@ -1,3 +1,7 @@
+# github.com/bradleyfalzon/ghinstallation v0.1.2
+github.com/bradleyfalzon/ghinstallation
+# github.com/dgrijalva/jwt-go v3.2.0+incompatible
+github.com/dgrijalva/jwt-go
 # github.com/fatedier/beego v0.0.0-20171024143340-6c6a4f5bd5eb
 github.com/fatedier/beego/logs
 # github.com/golang/protobuf v1.2.0
