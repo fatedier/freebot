@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -110,8 +111,20 @@ func (p *ModulePlugin) handlePullRequestEvent(ctx *event.EventContext) (err erro
 		}
 	}
 
-	if len(labelsMap) == 0 {
-		return
+	originLabels, err := p.cli.ListLabels(ctx.Ctx, ctx.Owner, ctx.Repo, number)
+	if err != nil {
+		log.Warn("list labels by issue number [%d] error: %v", number, err)
+		return err
+	}
+	originLabelsMap := make(map[string]struct{})
+	for _, l := range originLabels {
+		if strings.HasPrefix(l, p.extra.LablePrefix+"/") {
+			originLabelsMap[l] = struct{}{}
+		}
+	}
+
+	if reflect.DeepEqual(labelsMap, originLabelsMap) {
+		return nil
 	}
 
 	labels := make([]string, 0, len(labelsMap))
@@ -130,6 +143,7 @@ func (p *ModulePlugin) handlePullRequestEvent(ctx *event.EventContext) (err erro
 	}
 	log.Debug("[%d] add label %v", number, labels)
 
+	// send comment
 	labelRoles := p.GetLabelRoles()
 	if len(p.extra.EnableCommentRoles) > 0 && len(labelRoles) > 0 {
 		content := "### Label Roles:\n"
