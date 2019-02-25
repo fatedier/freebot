@@ -8,6 +8,20 @@ import (
 	"github.com/google/go-github/github"
 )
 
+func (cli *githubClient) ListLabels(ctx context.Context, owner, repo string, number int) ([]string, error) {
+	labelNames := make([]string, 0)
+	labels, _, err := cli.client.Issues.ListLabelsByIssue(ctx, owner, repo, number, &github.ListOptions{
+		PerPage: 100,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, label := range labels {
+		labelNames = append(labelNames, label.GetName())
+	}
+	return labelNames, nil
+}
+
 // Operations
 type ReplaceLabelOperation struct {
 	Owner              string
