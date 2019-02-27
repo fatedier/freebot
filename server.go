@@ -26,6 +26,7 @@ import (
 	_ "github.com/fatedier/freebot/plugin/module"
 	_ "github.com/fatedier/freebot/plugin/notify"
 	_ "github.com/fatedier/freebot/plugin/status"
+	_ "github.com/fatedier/freebot/plugin/trigger"
 
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"

@@ -9,69 +9,46 @@ import (
 	"github.com/fatedier/freebot/plugin"
 )
 
-/*
-	extra params:
-*/
-
 var (
 	PluginName = "status"
 	CmdStatus  = "status"
+
+	SupportTriggers = map[string]struct{}{
+		"pull_request/opened":      struct{}{},
+		"pull_request/synchronize": struct{}{},
+		"pull_request/labeled":     struct{}{},
+		"pull_request/unlabeled":   struct{}{},
+
+		"pull_request_review/submitted/approved":          struct{}{},
+		"pull_request_review/submitted/commented":         struct{}{},
+		"pull_request_review/submitted/changes_requested": struct{}{},
+	}
 )
 
 func init() {
 	plugin.Register(PluginName, NewStatusPlugin)
 }
 
-/*
-	example:
-
-	{
-		"init": {
-            "status": "wip",
-            "preconditions": []
-        },
-        "approved": {
-            "status": "approved",
-            "preconditions": [{
-                "required_roles": ["owner"]
-            }]
-        },
-		"synchronize": {
-			"status": "wip",
-			"precondition": []
-		},
-		"label_precondition": {
-			"wip": [],
-			"wait-review": [],
-			"request-changes": [],
-			"approved": [{
-				"is_owner": true
-			}],
-			"testing": [{
-				"required_labels": ["status/approved"]
-			}],
-			"merge-ready": [
-				{
-					"is_owner": true,
-				},
-				{
-					"is_qa": true,
-					"required_labels": ["status/testing"]
-				}
-			]
-		}
-	}
-*/
 type LabelStatus struct {
 	Status        string                `json:"status"`
 	Preconditions []config.Precondition `json:"preconditions"`
 }
 
 type Extra struct {
-	Init               LabelStatus                      `json:"init"`
-	Approved           LabelStatus                      `json:"approved"`
-	Synchronize        LabelStatus                      `json:"synchronize"`
+	// key should be in SupportTriggers
+	EventsTrigger map[string][]LabelStatus `json:"events_trigger"`
+
 	LabelPreconditions map[string][]config.Precondition `json:"label_precondition"`
+}
+
+func (ex *Extra) Complete() {
+	if ex.EventsTrigger == nil {
+		ex.EventsTrigger = make(map[string][]LabelStatus)
+	}
+
+	if ex.LabelPreconditions == nil {
+		ex.LabelPreconditions = make(map[string][]config.Precondition)
+	}
 }
 
 type StatusPlugin struct {
@@ -90,22 +67,18 @@ func NewStatusPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 
 	handlerOptions := []plugin.HandlerOptions{
 		plugin.HandlerOptions{
-			Events:           []string{event.EvPullRequest},
-			Actions:          []string{event.ActionOpened},
-			ObjectNeedParams: []int{event.ObjectNeedNumber},
-			Handler:          p.handlePullRequestEvent,
+			Events:  []string{event.EvPullRequest},
+			Actions: []string{event.ActionOpened, event.ActionSynchronize, event.ActionLabeled, event.ActionUnlabeled},
+			ObjectNeedParams: []int{event.ObjectNeedNumber, event.ObjectNeedAction, event.ObjectNeedSenderUser,
+				event.ObjectNeedLabels},
+			Handler: p.handlePullRequestEvent,
 		},
 		plugin.HandlerOptions{
-			Events:           []string{event.EvPullRequest},
-			Actions:          []string{event.ActionSynchronize},
-			ObjectNeedParams: []int{event.ObjectNeedNumber},
-			Handler:          p.handlePullRequestSynchronizeEvent,
-		},
-		plugin.HandlerOptions{
-			Events:           []string{event.EvPullRequestReview},
-			Actions:          []string{event.ActionSubmitted},
-			ObjectNeedParams: []int{event.ObjectNeedNumber, event.ObjectNeedSenderUser, event.ObjectNeedReviewState},
-			Handler:          p.handlePullRequestReviewEvent,
+			Events:  []string{event.EvPullRequestReview},
+			Actions: []string{event.ActionSubmitted},
+			ObjectNeedParams: []int{event.ObjectNeedNumber, event.ObjectNeedAction, event.ObjectNeedSenderUser,
+				event.ObjectNeedLabels, event.ObjectNeedReviewState},
+			Handler: p.handlePullRequestReviewEvent,
 		},
 		plugin.HandlerOptions{
 			Events:           []string{event.EvIssueComment, event.EvPullRequest, event.EvPullRequestReviewComment},
@@ -122,6 +95,7 @@ func NewStatusPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 	if err != nil {
 		return nil, err
 	}
+	p.extra.Complete()
 	return p, nil
 }
 
@@ -171,65 +145,38 @@ func (p *StatusPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 }
 
 func (p *StatusPlugin) handlePullRequestEvent(ctx *event.EventContext) (err error) {
-	if p.extra.Init.Status != "" {
-		number, _ := ctx.Object.Number()
-		err = p.CheckPreconditions(ctx, p.extra.Init.Preconditions)
-		if err != nil {
-			log.Warn("init preconditions check failed: %v", err)
-			return
-		}
-
-		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
-			Owner:              ctx.Owner,
-			Repo:               ctx.Repo,
-			ReplaceLabelPrefix: CmdStatus + "/",
-			Number:             number,
-			Labels:             []string{CmdStatus + "/" + p.extra.Init.Status},
-		})
-		if err != nil {
-			return
-		}
-		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Init.Status)
-	}
-	return
+	action, _ := ctx.Object.Action()
+	triggerName := ctx.Type + "/" + action
+	return p.handleTrigger(ctx, triggerName)
 }
 
 func (p *StatusPlugin) handlePullRequestReviewEvent(ctx *event.EventContext) (err error) {
-	if p.extra.Approved.Status != "" {
-		number, _ := ctx.Object.Number()
-		reviewState, _ := ctx.Object.ReviewState()
-		if reviewState != event.ReviewStateApproved {
-			return
-		}
-
-		err = p.CheckPreconditions(ctx, p.extra.Approved.Preconditions)
-		if err != nil {
-			log.Warn("approved preconditions check failed: %v", err)
-			return
-		}
-
-		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
-			Owner:              ctx.Owner,
-			Repo:               ctx.Repo,
-			ReplaceLabelPrefix: CmdStatus + "/",
-			Number:             number,
-			Labels:             []string{CmdStatus + "/" + p.extra.Approved.Status},
-		})
-		if err != nil {
-			return
-		}
-		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Approved.Status)
-	}
-	return
+	action, _ := ctx.Object.Action()
+	state, _ := ctx.Object.ReviewState()
+	triggerName := ctx.Type + "/" + action + "/" + state
+	return p.handleTrigger(ctx, triggerName)
 }
 
-func (p *StatusPlugin) handlePullRequestSynchronizeEvent(ctx *event.EventContext) (err error) {
-	if p.extra.Synchronize.Status != "" {
-		number, _ := ctx.Object.Number()
-		err = p.CheckPreconditions(ctx, p.extra.Synchronize.Preconditions)
+func (p *StatusPlugin) handleTrigger(ctx *event.EventContext, triggerName string) (err error) {
+	if _, ok := SupportTriggers[triggerName]; !ok {
+		return
+	}
+
+	statusPreconditions, ok := p.extra.EventsTrigger[triggerName]
+	if !ok {
+		return
+	}
+
+	number, _ := ctx.Object.Number()
+	for _, labelStatus := range statusPreconditions {
+		if labelStatus.Status == "" {
+			continue
+		}
+
+		err = p.CheckPreconditions(ctx, labelStatus.Preconditions)
 		if err != nil {
-			log.Warn("synchronize preconditions check failed: %v", err)
-			return
+			log.Debug("[%d] [%s] [%s] preconditions not satisfy: %v", number, triggerName, labelStatus.Status, err)
+			continue
 		}
 
 		err = p.cli.DoOperation(ctx.Ctx, &client.ReplaceLabelOperation{
@@ -237,12 +184,13 @@ func (p *StatusPlugin) handlePullRequestSynchronizeEvent(ctx *event.EventContext
 			Repo:               ctx.Repo,
 			ReplaceLabelPrefix: CmdStatus + "/",
 			Number:             number,
-			Labels:             []string{CmdStatus + "/" + p.extra.Synchronize.Status},
+			Labels:             []string{CmdStatus + "/" + labelStatus.Status},
 		})
 		if err != nil {
 			return
 		}
-		log.Debug("[%d] add label %s", number, CmdStatus+"/"+p.extra.Synchronize.Status)
+		log.Debug("[%d] [%s] [%s] add label %s", number, triggerName, labelStatus.Status, CmdStatus+"/"+labelStatus.Status)
+		break
 	}
-	return
+	return nil
 }
