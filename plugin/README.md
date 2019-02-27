@@ -5,13 +5,14 @@
 目前支持的插件及说明文档:
 
 * [Assign](/plugin/assign)
-* [Status](/plugin/status)
-* [Merge](/plugin/merge)
-* [LifeCycle](/plugin/lifecycle)
-* [Notify](/plugin/notify)
 * [Label](/plugin/label)
-* [Module](/plugin/module)
 * [LGTM](/plugin/lgtm)
+* [LifeCycle](/plugin/lifecycle)
+* [Merge](/plugin/merge)
+* [Module](/plugin/module)
+* [Notify](/plugin/notify)
+* [Status](/plugin/status)
+* [Trigger](/plugin/trigger)
 
 ### 配置说明
 
