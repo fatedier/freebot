@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fatedier/freebot/pkg/client"
+	"github.com/fatedier/freebot/pkg/client/githubapp"
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/httputil"
 	"github.com/fatedier/freebot/pkg/log"
@@ -19,22 +20,26 @@ import (
 	"github.com/fatedier/freebot/plugin"
 	_ "github.com/fatedier/freebot/plugin/assign"
 	_ "github.com/fatedier/freebot/plugin/label"
+	_ "github.com/fatedier/freebot/plugin/lgtm"
 	_ "github.com/fatedier/freebot/plugin/lifecycle"
 	_ "github.com/fatedier/freebot/plugin/merge"
 	_ "github.com/fatedier/freebot/plugin/module"
 	_ "github.com/fatedier/freebot/plugin/notify"
 	_ "github.com/fatedier/freebot/plugin/status"
+	_ "github.com/fatedier/freebot/plugin/trigger"
 
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
 
 type Config struct {
-	BindAddr          string `json:"bind_addr"`
-	LogLevel          string `json:"log_level"`
-	LogFile           string `json:"log_file"`
-	LogMaxDays        int64  `json:"log_max_days"`
-	GithubAccessToken string `json:"github_access_token"`
+	BindAddr            string `json:"bind_addr"`
+	LogLevel            string `json:"log_level"`
+	LogFile             string `json:"log_file"`
+	LogMaxDays          int64  `json:"log_max_days"`
+	GithubAccessToken   string `json:"github_access_token"`
+	GithubAppPrivateKey string `json:"github_app_private_key"`
+	GithubAppID         int    `json:"github_app_id"`
 
 	// repo -> plugin
 	RepoConfs map[string]RepoConf `json:"repo_confs"`
@@ -44,9 +49,10 @@ type Config struct {
 }
 
 type RepoConf struct {
-	Alias   config.AliasOptions     `json:"alias"`
-	Roles   config.RoleOptions      `json:"roles"` // role -> []string{user1, user2}
-	Plugins map[string]PluginConfig `json:"plugins"`
+	Alias      config.AliasOptions     `json:"alias"`
+	Roles      config.RoleOptions      `json:"roles"`       // role -> []string{user1, user2}
+	LabelRoles config.LabelRoles       `json:"label_roles"` // label -> role -> users
+	Plugins    map[string]PluginConfig `json:"plugins"`
 }
 
 type PluginConfig struct {
@@ -85,12 +91,24 @@ func NewService(cfg Config) (*Service, error) {
 
 	svc.notifier = notify.NewNotifyController()
 
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: cfg.GithubAccessToken},
-	)
-	tc := oauth2.NewClient(context.Background(), ts)
-	githubCli := github.NewClient(tc)
-	svc.cli = client.NewGithubClient(githubCli)
+	requireInstallation := false
+	if cfg.GithubAccessToken != "" {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: cfg.GithubAccessToken},
+		)
+		tc := oauth2.NewClient(context.Background(), ts)
+		githubCli := github.NewClient(tc)
+		svc.cli = client.NewGithubClient(githubCli)
+	} else if cfg.GithubAppPrivateKey != "" {
+		tr, err := githubapp.NewGithubAppInstallTransport(http.DefaultTransport, cfg.GithubAppID, cfg.GithubAppPrivateKey)
+		if err != nil {
+			return nil, err
+		}
+
+		githubCli := github.NewClient(&http.Client{Transport: tr})
+		svc.cli = client.NewGithubClient(githubCli)
+		requireInstallation = true
+	}
 
 	svc.staticRepoConfs = cfg.RepoConfs
 	if svc.RepoConfDir != "" {
@@ -108,7 +126,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("create plugins error: %v", err)
 	}
 
-	svc.eventHandler = NewEventHandler(plugins)
+	svc.eventHandler = NewEventHandler(requireInstallation, plugins)
 	return svc, nil
 }
 
@@ -198,7 +216,7 @@ func (svc *Service) createPlugins(repoConfs map[string]RepoConf) (plugins map[st
 				return nil, fmt.Errorf("repo name invalid")
 			}
 			baseOptions := plugin.PluginOptions{}
-			baseOptions.Complete(arrs[0], arrs[1], repoConf.Alias, repoConf.Roles, pluginConf.Preconditions, pluginConf.Extra)
+			baseOptions.Complete(arrs[0], arrs[1], repoConf.Alias, repoConf.Roles, repoConf.LabelRoles, pluginConf.Preconditions, pluginConf.Extra)
 			p, err := plugin.Create(svc.cli, svc.notifier, pluginName, baseOptions)
 			if err != nil {
 				err = fmt.Errorf("create plugin [%s] error: %v", pluginName, err)

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/fatedier/freebot/pkg/client"
+	"github.com/fatedier/freebot/pkg/client/githubapp"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/httputil"
 	"github.com/fatedier/freebot/pkg/log"
@@ -20,18 +21,22 @@ var (
 	ErrNoSupportEvent = httputil.NewHttpError(400, "no support event")
 	ErrNoOwnerRepo    = httputil.NewHttpError(400, "event no owner and repo info")
 	ErrNoPlugins      = httputil.NewHttpError(400, "no correspond plugins")
+	ErrNoInstallation = httputil.NewHttpError(400, "no installation")
 )
 
 type EventHandler struct {
+	requireInstallation bool
+
 	// key is owner/repo
 	plugins map[string][]plugin.Plugin
 
 	mu sync.RWMutex
 }
 
-func NewEventHandler(plugins map[string][]plugin.Plugin) *EventHandler {
+func NewEventHandler(requireInstallation bool, plugins map[string][]plugin.Plugin) *EventHandler {
 	return &EventHandler{
-		plugins: plugins,
+		requireInstallation: requireInstallation,
+		plugins:             plugins,
 	}
 }
 
@@ -90,6 +95,14 @@ func (eh *EventHandler) HandleEvent(ctx context.Context, evType string, content 
 		repo = v.GetRepo().GetName()
 	} else {
 		return ErrNoOwnerRepo
+	}
+
+	if eh.requireInstallation {
+		if v, ok := payload.(client.GetInstallationInterface); ok && v.GetInstallation() != nil && v.GetInstallation().ID != nil {
+			ctx = githubapp.WithInstallID(ctx, int(*v.GetInstallation().ID))
+		} else {
+			return ErrNoInstallation
+		}
 	}
 
 	// get plugins

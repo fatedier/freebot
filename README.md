@@ -99,6 +99,8 @@ freebot 会用定期轮询的方式读取指定目录的配置，如果检测到
 
 可以为指定的用户分配指定角色，在之后的插件中的前置条件可以对 author 的角色有要求。例如限制只有 owner 角色的用户才能执行某些命令。
 
+还可以设置当存在某个 label 时某个用户为指定的角色。
+
 示例:
 
 ```json
@@ -106,6 +108,13 @@ freebot 会用定期轮询的方式读取指定目录的配置，如果检测到
     "roles": {
         "owner": ["user1", "user2"],
         "qa": ["qa1"]
+    },
+    "label_roles": {
+        "module/cmd": {
+            "owner": ["user3"]
+        }
     }
 }
 ```
+
+上面的示例表示当 issue 或 PR 存在 `module/cmd` 的 label 时，user3 的角色是 owner。

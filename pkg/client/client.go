@@ -12,6 +12,7 @@ type ClientInterface interface {
 	CheckMergeable(ctx context.Context, owner, repo string, number int) (bool, error)
 	ListPullRequestBySHA(ctx context.Context, owner, repo, sha string) ([]PullRequest, error)
 	ListFilesByPullRequest(ctx context.Context, owner, repo string, number int) ([]string, error)
+	ListLabels(ctx context.Context, owner, repo string, number int) ([]string, error)
 }
 
 var _ ClientInterface = &githubClient{}
@@ -48,6 +49,8 @@ func (cli *githubClient) DoOperation(ctx context.Context, op interface{}) (err e
 		err = cli.doAddLabelOperation(ctx, v)
 	case *RemoveLabelOperation:
 		err = cli.doRemoveLabelOperation(ctx, v)
+	case *AddIssueCommentOperation:
+		err = cli.doAddIssueCommentOperation(ctx, v)
 	default:
 		err = fmt.Errorf("no support operation")
 	}

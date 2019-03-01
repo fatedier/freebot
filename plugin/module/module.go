@@ -1,6 +1,8 @@
 package module
 
 import (
+	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -25,8 +27,9 @@ type ModuleMap struct {
 }
 
 type Extra struct {
-	LablePrefix   string            `json:"label_prefix"`
-	FilePrefixMap map[string]string `json:"file_prefix_map"`
+	LablePrefix        string            `json:"label_prefix"`
+	EnableCommentRoles []string          `json:"enable_comment_roles"`
+	FilePrefixMap      map[string]string `json:"file_prefix_map"`
 
 	moduleMaps []*ModuleMap `json:"-"`
 }
@@ -46,6 +49,10 @@ func (ex *Extra) Complete() {
 	sort.Slice(ex.moduleMaps, func(i, j int) bool {
 		return len(ex.moduleMaps[i].Prefix) > len(ex.moduleMaps[j].Prefix)
 	})
+
+	if ex.EnableCommentRoles == nil {
+		ex.EnableCommentRoles = make([]string, 0)
+	}
 }
 
 type ModulePlugin struct {
@@ -104,6 +111,22 @@ func (p *ModulePlugin) handlePullRequestEvent(ctx *event.EventContext) (err erro
 		}
 	}
 
+	originLabels, err := p.cli.ListLabels(ctx.Ctx, ctx.Owner, ctx.Repo, number)
+	if err != nil {
+		log.Warn("list labels by issue number [%d] error: %v", number, err)
+		return err
+	}
+	originLabelsMap := make(map[string]struct{})
+	for _, l := range originLabels {
+		if strings.HasPrefix(l, p.extra.LablePrefix+"/") {
+			originLabelsMap[l] = struct{}{}
+		}
+	}
+
+	if reflect.DeepEqual(labelsMap, originLabelsMap) {
+		return nil
+	}
+
 	labels := make([]string, 0, len(labelsMap))
 	for name, _ := range labelsMap {
 		labels = append(labels, name)
@@ -119,5 +142,38 @@ func (p *ModulePlugin) handlePullRequestEvent(ctx *event.EventContext) (err erro
 		return
 	}
 	log.Debug("[%d] add label %v", number, labels)
+
+	// send comment
+	labelRoles := p.GetLabelRoles()
+	if len(p.extra.EnableCommentRoles) > 0 && len(labelRoles) > 0 {
+		content := "### Label Roles:\n"
+		for _, role := range p.extra.EnableCommentRoles {
+			content += fmt.Sprintf("\n#### %s", role)
+
+			for _, label := range labels {
+				content += fmt.Sprintf("\n* **%s** ", label)
+				roles, ok := labelRoles[label]
+				if !ok {
+					continue
+				}
+
+				users, ok := roles[role]
+				if !ok {
+					continue
+				}
+				content += fmt.Sprintf("*%v*", users)
+			}
+		}
+
+		err = p.cli.DoOperation(ctx.Ctx, &client.AddIssueCommentOperation{
+			Owner:   ctx.Owner,
+			Repo:    ctx.Repo,
+			Number:  number,
+			Content: content,
+		})
+		if err != nil {
+			return
+		}
+	}
 	return
 }

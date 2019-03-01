@@ -322,3 +322,7 @@ type GetSenderInterface interface {
 type GetReviewInterface interface {
 	GetReview() *github.PullRequestReview
 }
+
+type GetInstallationInterface interface {
+	GetInstallation() *github.Installation
+}

@@ -8,6 +8,21 @@ import (
 	"github.com/google/go-github/github"
 )
 
+func (cli *githubClient) ListLabels(ctx context.Context, owner, repo string, number int) ([]string, error) {
+	labelNames := make([]string, 0)
+	labels, _, err := cli.client.Issues.ListLabelsByIssue(ctx, owner, repo, number, &github.ListOptions{
+		PerPage: 100,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, label := range labels {
+		labelNames = append(labelNames, label.GetName())
+	}
+	return labelNames, nil
+}
+
+// Operations
 type ReplaceLabelOperation struct {
 	Owner              string
 	Repo               string
@@ -148,4 +163,18 @@ func (cli *githubClient) doReopenOperation(ctx context.Context, op *ReopenOperat
 	}
 
 	return fmt.Errorf("can't get issue or pr from object")
+}
+
+type AddIssueCommentOperation struct {
+	Owner   string
+	Repo    string
+	Number  int
+	Content string
+}
+
+func (cli *githubClient) doAddIssueCommentOperation(ctx context.Context, op *AddIssueCommentOperation) error {
+	_, _, err := cli.client.Issues.CreateComment(ctx, op.Owner, op.Repo, op.Number, &github.IssueComment{
+		Body: &op.Content,
+	})
+	return err
 }
