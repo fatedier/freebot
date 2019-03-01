@@ -68,6 +68,54 @@ func (cli *githubClient) ListPullRequestBySHA(ctx context.Context, owner, repo s
 	return
 }
 
+func (cli *githubClient) ListPullRequestsByState(ctx context.Context, owner, repo string, state string) (prs []PullRequest, err error) {
+	prs = make([]PullRequest, 0)
+	step := 50
+	page := 1
+
+	for {
+		githubPRs, _, err := cli.client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
+			State: state,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// no more pull requests
+		if len(githubPRs) == 0 {
+			break
+		}
+		page++
+
+		for _, githubPR := range githubPRs {
+			pr := PullRequest{
+				Number:  githubPR.GetNumber(),
+				State:   githubPR.GetState(),
+				Title:   githubPR.GetTitle(),
+				Body:    githubPR.GetBody(),
+				User:    githubPR.GetUser().GetLogin(),
+				Labels:  make([]string, 0),
+				HTMLURL: githubPR.GetHTMLURL(),
+			}
+			for _, rr := range githubPR.RequestedReviewers {
+				if rr != nil {
+					pr.RequestedReviewers = append(pr.RequestedReviewers, rr.GetLogin())
+				}
+			}
+			for _, l := range githubPR.Labels {
+				pr.Labels = append(pr.Labels, l.GetName())
+			}
+			prs = append(prs, pr)
+		}
+
+		// no more pull requests
+		if len(githubPRs) < step {
+			break
+		}
+	}
+	return
+}
+
 func (cli *githubClient) ListFilesByPullRequest(ctx context.Context, owner, repo string, number int) (files []string, err error) {
 	files = make([]string, 0)
 	step := 200

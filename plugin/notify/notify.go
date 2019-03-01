@@ -10,6 +10,7 @@ import (
 	"github.com/fatedier/freebot/pkg/log"
 	"github.com/fatedier/freebot/pkg/notify"
 	"github.com/fatedier/freebot/plugin"
+	"github.com/robfig/cron"
 )
 
 const (
@@ -37,10 +38,17 @@ type PingOption struct {
 	Preconditions []config.Precondition `json:"preconditions"`
 }
 
+type CrontabOption struct {
+	Disable     bool     `json:"disable"`
+	SendToUsers []string `json:"send_to_users"`
+	Job         string   `json:"job"` // "0 30 * * * *"   # 每半个小时通知一次
+}
+
 type Extra struct {
 	UserNotifyConfs map[string]*notify.NotifyOptions `json:"user_notify_confs"`
 	Ping            PingOption                       `json:"ping"`
 	Events          map[string]*EventNotifyConf      `json:"events"`
+	Crontab         map[string]CrontabOption         `json:"crontab"`
 }
 
 func (ex *Extra) Complete() {
@@ -66,6 +74,7 @@ type NotifyPlugin struct {
 	extra    Extra
 	cli      client.ClientInterface
 	notifier notify.NotifyInterface
+	cron     *cron.Cron
 }
 
 func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
@@ -102,7 +111,12 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 		return nil, err
 	}
 	p.extra.Complete()
+	p.cron = cron.New()
 	return p, nil
+}
+
+func (p *NotifyPlugin) Close() {
+	p.cron.Stop()
 }
 
 func (p *NotifyPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {

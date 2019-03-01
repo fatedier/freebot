@@ -40,7 +40,14 @@
             "check_suite_complete": {
                 "users": ["user1", "user2"]
             }
-        }
+        },
+        "crontab": {
+            "wait_review_pull_request":{
+                "disable": false,
+                "send_to_users": [],
+                "job": "0 30 * * * *"
+             }
+         }
     }
 }
 ```

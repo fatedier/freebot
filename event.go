@@ -43,6 +43,17 @@ func NewEventHandler(requireInstallation bool, plugins map[string][]plugin.Plugi
 func (eh *EventHandler) UpdatePlugins(plugins map[string][]plugin.Plugin) {
 	eh.mu.Lock()
 	defer eh.mu.Unlock()
+
+	// close all plugin
+	for _, ps := range eh.plugins {
+		for _, p := range ps {
+			pv, valid := p.(plugin.TaskRunner)
+			if valid {
+				pv.Close()
+			}
+		}
+	}
+
 	eh.plugins = plugins
 }
 
