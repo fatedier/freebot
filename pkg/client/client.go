@@ -12,6 +12,7 @@ type ClientInterface interface {
 	CheckMergeable(ctx context.Context, owner, repo string, number int) (bool, error)
 	ListPullRequestBySHA(ctx context.Context, owner, repo, sha string) ([]PullRequest, error)
 	ListFilesByPullRequest(ctx context.Context, owner, repo string, number int) ([]string, error)
+	ListPullRequestsByState(ctx context.Context, owner, repo string, state string) ([]PullRequest, error)
 }
 
 var _ ClientInterface = &githubClient{}

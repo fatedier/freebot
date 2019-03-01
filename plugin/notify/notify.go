@@ -37,10 +37,18 @@ type PingOption struct {
 	Preconditions []config.Precondition `json:"preconditions"`
 }
 
+type CrontabOption struct {
+	Disable       bool                  `json:"disable"`
+	Preconditions []config.Precondition `json:"preconditions"`
+	SendToUsers   []string              `json:"send_to_users"`
+	Job           string                `json:"job"` // "0 30 * * * *"   # 每半个小时通知一次
+}
+
 type Extra struct {
 	UserNotifyConfs map[string]*notify.NotifyOptions `json:"user_notify_confs"`
 	Ping            PingOption                       `json:"ping"`
 	Events          map[string]*EventNotifyConf      `json:"events"`
+	Crontab         map[string]CrontabOption         `json:"crontab"`
 }
 
 func (ex *Extra) Complete() {
@@ -103,6 +111,37 @@ func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface
 	}
 	p.extra.Complete()
 	return p, nil
+}
+
+// 需要考虑关闭 goroutine
+func (p *NotifyPlugin) handleCrontabJobs(ctx *event.EventContext) (err error) {
+	if len(p.extra.Crontab) == 0 {
+		return nil
+	}
+
+	crontabs := p.extra.Crontab
+	issueHTMLURL, _ := ctx.Object.IssueHTMLURL()
+
+	for _, ct := range crontabs {
+		if ct.Disable {
+			continue
+		}
+		err = p.CheckPreconditions(ctx, ct.Preconditions)
+		if err != nil {
+			log.Warn("preconditions check failed: %v", err)
+			continue
+		}
+		go func(users []string, job string) {
+			for _, user := range users {
+				if notifyOption, ok := p.extra.UserNotifyConfs[user]; ok {
+					content := fmt.Sprintf("please review quickly")
+					content += fmt.Sprintf("\n%s", issueHTMLURL)
+					err = p.notifier.Send(ctx.Ctx, notifyOption, content)
+				}
+			}
+		}(ct.SendToUsers, ct.Job)
+	}
+	return
 }
 
 func (p *NotifyPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {

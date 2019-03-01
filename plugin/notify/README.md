@@ -40,7 +40,15 @@
             "check_suite_complete": {
                 "users": ["user1", "user2"]
             }
-        }
+        },
+        "crontab": {
+            "wait_review_pull_request":{
+                "disable": false,
+                "preconditions": [],
+                "sender_to_users": [],  # 为空则发给所有 request reviewers
+                "job": "0 30 * * * *"   # 每半个小时通知一次
+             }
+         }
     }
 }
 ```
