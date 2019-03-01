@@ -13,6 +13,7 @@ type ClientInterface interface {
 	ListPullRequestBySHA(ctx context.Context, owner, repo, sha string) ([]PullRequest, error)
 	ListFilesByPullRequest(ctx context.Context, owner, repo string, number int) ([]string, error)
 	ListLabels(ctx context.Context, owner, repo string, number int) ([]string, error)
+	ListPullRequestsByState(ctx context.Context, owner, repo string, state string) ([]PullRequest, error)
 }
 
 var _ ClientInterface = &githubClient{}

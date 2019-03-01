@@ -47,6 +47,11 @@ type Plugin interface {
 	HandleEvent(ctx *event.EventContext) (notSupport bool, err error)
 }
 
+type TaskRunner interface {
+	RunTask()
+	Close()
+}
+
 type PluginOptions struct {
 	Owner         string
 	Repo          string

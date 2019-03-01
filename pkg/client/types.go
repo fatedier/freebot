@@ -26,11 +26,12 @@ type CheckEvent struct {
 }
 
 type PullRequest struct {
-	Number  int
-	State   string
-	Title   string
-	Body    string
-	Labels  []string
-	User    string
-	HTMLURL string
+	Number             int
+	State              string
+	Title              string
+	Body               string
+	Labels             []string
+	User               string
+	HTMLURL            string
+	RequestedReviewers []string
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/log"
 	"github.com/fatedier/freebot/pkg/notify"
+	"github.com/fatedier/freebot/pkg/util"
 	"github.com/fatedier/freebot/plugin"
 )
 
@@ -97,7 +98,7 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 		}
 
 		if cv, ok := p.extra[cmd.Name]; ok {
-			if stringContains(cv.Labels, arg) {
+			if util.StringContains(cv.Labels, arg) {
 				// one preconditions should be satisfied
 				err = p.CheckPreconditions(ctx, p.extra[cmd.Name].AddPreconditions)
 				if err != nil {
@@ -121,7 +122,7 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 		if strings.HasPrefix(cmd.Name, PluginRemoveCmdPrefix) {
 			trimName := strings.TrimPrefix(cmd.Name, PluginRemoveCmdPrefix)
 			if cv, ok := p.extra[trimName]; ok {
-				if stringContains(cv.Labels, arg) {
+				if util.StringContains(cv.Labels, arg) {
 					// one preconditions should be satisfied
 					err = p.CheckPreconditions(ctx, p.extra[trimName].RemovePreconditions)
 					if err != nil {
@@ -144,13 +145,4 @@ func (p *LablePlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 		}
 	}
 	return
-}
-
-func stringContains(strs []string, s string) bool {
-	for _, v := range strs {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }

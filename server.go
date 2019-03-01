@@ -224,6 +224,10 @@ func (svc *Service) createPlugins(repoConfs map[string]RepoConf) (plugins map[st
 				return nil, err
 			}
 
+			if pv, valid := p.(plugin.TaskRunner); valid {
+				pv.RunTask()
+			}
+
 			ps, ok := plugins[repoName]
 			if ok {
 				ps = append(ps, p)
