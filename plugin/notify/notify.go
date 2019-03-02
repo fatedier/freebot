@@ -1,10 +1,12 @@
 package notify
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/fatedier/freebot/pkg/client"
+	"github.com/fatedier/freebot/pkg/client/githubapp"
 	"github.com/fatedier/freebot/pkg/config"
 	"github.com/fatedier/freebot/pkg/event"
 	"github.com/fatedier/freebot/pkg/log"
@@ -74,13 +76,16 @@ type NotifyPlugin struct {
 	extra    Extra
 	cli      client.ClientInterface
 	notifier notify.NotifyInterface
-	cron     *cron.Cron
+
+	cron   *cron.Cron
+	cliCtx context.Context
 }
 
 func NewNotifyPlugin(cli client.ClientInterface, notifier notify.NotifyInterface, options plugin.PluginOptions) (plugin.Plugin, error) {
 	p := &NotifyPlugin{
 		cli:      cli,
 		notifier: notifier,
+		cliCtx:   githubapp.WithOwner(context.Background(), options.Owner),
 	}
 	handlerOptions := []plugin.HandlerOptions{
 		plugin.HandlerOptions{

@@ -15,18 +15,27 @@ type key int
 
 const (
 	installIDKey key = 0
+	ownerKey     key = 1
 )
 
 func WithInstallID(ctx context.Context, id int) context.Context {
 	return context.WithValue(ctx, installIDKey, id)
 }
 
+func WithOwner(ctx context.Context, owner string) context.Context {
+	return context.WithValue(ctx, ownerKey, owner)
+}
+
 type GithubAppInstallTransport struct {
 	tr                http.RoundTripper
+	cli               *github.Client
 	appID             int
 	privateKey        []byte
 	installTransports map[int]http.RoundTripper
 	mu                sync.RWMutex
+
+	ownerMap map[string]int
+	ownerMu  sync.RWMutex
 
 	doingUpdateID map[int]struct{}
 	doingMu       sync.Mutex
@@ -53,19 +62,23 @@ func NewGithubAppInstallTransport(tr http.RoundTripper, appID int, privateKeyFil
 
 	out := &GithubAppInstallTransport{
 		tr:                tr,
+		cli:               githubCli,
 		appID:             appID,
 		privateKey:        privateKey,
 		installTransports: make(map[int]http.RoundTripper),
+		ownerMap:          make(map[string]int),
 		doingUpdateID:     make(map[int]struct{}),
 	}
 	for _, install := range installs {
 		id := int(install.GetID())
+		owner := install.GetAccount().GetLogin()
 		insTr, err := ghinstallation.New(tr, appID, id, privateKey)
 		if err != nil {
 			return nil, fmt.Errorf("get transport for install ID %d error: %v", id, err)
 		}
 		insTr.BaseURL = "https://api.github.com/app"
 		out.installTransports[id] = insTr
+		out.ownerMap[owner] = id
 	}
 	return out, nil
 }
@@ -73,7 +86,21 @@ func NewGithubAppInstallTransport(tr http.RoundTripper, appID int, privateKeyFil
 func (tr *GithubAppInstallTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	installID, ok := req.Context().Value(installIDKey).(int)
 	if !ok {
-		return nil, fmt.Errorf("no installID")
+		owner, ok := req.Context().Value(ownerKey).(string)
+		if !ok {
+			return nil, fmt.Errorf("no installID")
+		}
+
+		tr.ownerMu.RLock()
+		installID, ok = tr.ownerMap[owner]
+		tr.ownerMu.RUnlock()
+		if !ok {
+			install, _, err := tr.cli.Apps.FindUserInstallation(context.Background(), owner)
+			if err != nil {
+				return nil, fmt.Errorf("get installID from owner error")
+			}
+			installID = int(install.GetID())
+		}
 	}
 
 	tr.mu.RLock()

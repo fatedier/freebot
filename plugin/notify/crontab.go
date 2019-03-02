@@ -38,7 +38,7 @@ func (p *NotifyPlugin) RunTask() {
 
 func (p *NotifyPlugin) runWaitReviewJob() {
 	crontab := p.extra.Crontab[WaitReviewPullRequst]
-	prs, err := p.cli.ListPullRequestsByState(context.Background(), p.GetOwner(), p.GetRepo(), "open")
+	prs, err := p.cli.ListPullRequestsByState(p.cliCtx, p.GetOwner(), p.GetRepo(), "open")
 	if err != nil {
 		log.Warn("list pull request error: %v", err)
 		return
