@@ -162,7 +162,7 @@ func (p *NotifyPlugin) handleCommentEvent(ctx *event.EventContext) (err error) {
 				return
 			}
 
-			content := fmt.Sprintf("[%s/%s] You are pinged by [%s]", author, ctx.Owner, ctx.Repo)
+			content := fmt.Sprintf("[%s/%s] You are pinged by [%s]", ctx.Owner, ctx.Repo, author)
 			content += fmt.Sprintf("\n%s", issueHTMLURL)
 			if additionalMsg != "" {
 				content += fmt.Sprintf("\n%s", additionalMsg)
