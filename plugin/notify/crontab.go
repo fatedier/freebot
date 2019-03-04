@@ -53,16 +53,16 @@ func (p *NotifyPlugin) runWaitReviewJob() {
 		}
 	}
 
-	for uk, uv := range userMsg {
+	for user, msg := range userMsg {
 		content := fmt.Sprintf("[%s/%s] Pull Requests Wait To Review\n", p.GetOwner(), p.GetRepo())
-		if notifyOption, ok := p.extra.UserNotifyConfs[uk]; ok {
-			content += strings.Join(uv, "\n")
+		if notifyOption, ok := p.extra.UserNotifyConfs[user]; ok {
+			content += strings.Join(msg, "\n")
 			err = p.notifier.Send(context.Background(), notifyOption, content)
 			if err != nil {
 				log.Warn("run crontab job error: %v", err)
 				continue
 			}
-			log.Info("send request review pull request message to [%v] successfully, message: [%v]", uk, content)
+			log.Info("send request review pull request message to [%v] successfully, message: [%v]", user, content)
 		}
 	}
 }
