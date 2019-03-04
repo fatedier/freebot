@@ -59,3 +59,9 @@
 ### ping
 
 可以用过 `/ping {user} {message}` 的 comment 将其所属的 issue 或 PR 内容及消息通知给指定的用户。
+
+### crontab 定期通知
+
+`send_to_users` 表示需要发送给哪些用户，与 `user_notify_confs` 的 key 对应。
+
+`job` 为 cron 的表达式，与 Linux 的 crontab 、Java 的 Quartz 表达式一致，可以参考。
